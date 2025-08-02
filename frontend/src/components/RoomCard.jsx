@@ -1,0 +1,48 @@
+// RoomCard.jsx
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+function RoomCard() {
+  const [roomCode, setRoomCode] = useState('');
+  const navigate = useNavigate();
+
+  const createRoomAction = async () => {
+    const userId = prompt("Enter your username");
+    try {
+      const response = await axios.post('http://localhost:3001/createRoom', { userId });
+      alert(`Room Created: ${response.data.roomId}`);
+      navigate(`/room/${response.data.roomId}`);
+    } catch (error) {
+      alert('Room creation failed');
+    }
+  };
+
+  const joinRoomAction = async () => {
+    if (!roomCode.trim()) return alert("Enter a room code");
+
+    try {
+      const response = await axios.post('http://localhost:3001/joinRoom', { roomId: roomCode });
+      navigate(`/room/${roomCode}`);
+    } catch (error) {
+      alert("Room doesn't exist");
+    }
+  };
+
+  return (
+    <section>
+      <div className="roomCard">
+        <h2>Start Playing</h2>
+        <div className="joinRoom">
+          <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} />
+          <button onClick={joinRoomAction}>Join Room</button>
+        </div>
+        <div className="createRoom">
+          <button onClick={createRoomAction}>Create Room</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default RoomCard;

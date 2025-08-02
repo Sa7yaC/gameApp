@@ -1,0 +1,30 @@
+*{
+    padding: 0;
+    margin:0;
+}
+section{
+    height: auto;
+}
+.roomCard{
+    height: 120px;
+    display: grid;
+    justify-content: center;
+    align-item: center;
+}
+h2{
+    display:flex;
+    justify-content: center;
+}
+button.createRoombtn{
+    width: 100%;
+}
+.createRoom{
+    display: flex;
+    padding:5px;
+    justify-content: space-around;
+}
+.joinRoom{
+    display: flex;
+    padding: 5px;
+    justify-content: space-between;
+}

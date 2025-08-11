@@ -28,6 +28,14 @@ function RoomCard() {
       alert("Room doesn't exist");
     }
   };
+  // const handleJoin = () => {
+  //   if (username.trim()) {
+  //     socket.connect();
+  //     socket.emit("joinRoom", { roomId, username });
+  //     prompt("Enter your username", username);
+  //     setHasJoined(true);
+  //   }
+  // };
 
   return (
     <section>

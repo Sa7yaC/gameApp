@@ -1,20 +1,43 @@
 // sockets/socketHandler.js
+const users = {}; // { socket.id: username }
+
 export const initSocket = (io) => {
     io.on("connection", (socket) => {
-        console.log("Socket connected");
+        console.log("Socket connected:", socket.id);
 
-        socket.on("joinRoom", (roomId) => {
+        // User joins a room with a username
+        socket.on("joinRoom", ({ roomId, username }) => {
             socket.join(roomId);
-            console.log(`Socket joined room: ${roomId}`);
+
+            // Store the username for this socket
+            users[socket.id] = username;
+
+            console.log(`${username} joined room: ${roomId}`);
+
+            // Notify others in the room
+            socket.to(roomId,username).emit("chat message", {
+                user: "Room",
+                text: `New player joined the room`
+            });
         });
 
+        // Handle chat messages
         socket.on("chat message", ({ roomId, message }) => {
-            console.log(`Message to room ${roomId}: ${message}`);
-            io.to(roomId).emit("chat message", message);
+            const username = users[socket.id] || "Unknown";
+
+            console.log(`Message from ${username} in room ${roomId}: ${message}`);
+
+            io.to(roomId).emit("chat message", {
+                user: username,
+                text: message
+            });
         });
 
+        // Handle disconnect
         socket.on("disconnect", () => {
-            console.log("A user disconnected");
+            const username = users[socket.id];
+            console.log(`${username || "A user"} disconnected`);
+            delete users[socket.id];
         });
     });
 };

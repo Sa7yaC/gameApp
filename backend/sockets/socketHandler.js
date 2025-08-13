@@ -51,5 +51,9 @@ export const initSocket = (io) => {
             console.log(`${username || "A user"} disconnected`);
             delete users[socket.id];
         });
+        io.to(socket.id).emit("chat message", {
+            user: username,
+            text: message
+        });
     });
 };

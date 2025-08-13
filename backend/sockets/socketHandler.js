@@ -26,11 +26,23 @@ export const initSocket = (io) => {
             const username = users[socket.id] || "Unknown";
 
             console.log(`Message from ${username} in room ${roomId}: ${message}`);
-
-            io.to(roomId).emit("chat message", {
-                user: username,
-                text: message
-            });
+            let keyword = "hello";
+            if(message.trim()===keyword){
+                let newMessage ="";
+                for(let i=0;i<keyword.length;i++){
+                    newMessage+="*";
+                }
+                io.to(roomId).emit("chat message", {
+                    user: username,
+                    text: newMessage
+                });
+            }
+            else{
+                io.to(roomId).emit("chat message", {
+                    user: username,
+                    text: message
+                });
+            }
         });
 
         // Handle disconnect

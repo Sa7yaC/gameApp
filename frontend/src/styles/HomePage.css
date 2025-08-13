@@ -2,29 +2,61 @@
     padding: 0;
     margin:0;
 }
-section{
-    height: auto;
+section{;
+    padding-left: 7rem;
+    padding-right: 7rem;
+    justify-content: center;
+    display: flex;
 }
 .roomCard{
-    height: 120px;
+    height: 10rem;
+    width: 19rem;
     display: grid;
     justify-content: center;
+    background-color: #096bffff;
+    border-radius: 10px;
     align-item: center;
 }
 h2{
     display:flex;
     justify-content: center;
 }
-button.createRoombtn{
+.createBtn{
     width: 100%;
+    decoration: none;
+    border: none;
+    border-radius: 5px;
+    color: #094bffff;
+    font-weight: 600;
+    border: 2px solid #ffffffff;
+    background-color: #00ff59ff;
+    margin: 0.5rem;
 }
 .createRoom{
     display: flex;
-    padding:5px;
     justify-content: space-around;
 }
 .joinRoom{
     display: flex;
-    padding: 5px;
     justify-content: space-between;
+    margin: 0.5rem;
+}
+input{
+    padding-right: 0.2rem;
+    border-radius: 5px;
+    decoration: none;
+    border: none;
+    padding: 5px;
+
+}
+.joinbtn{
+    width: 4rem;
+    decoration: none;
+    border: none;
+    border-radius: 5px;
+    color: #094bffff;
+    font-weight: 600;
+    border: 2px solid #ffffffff;
+    background-color: #00ff59ff;
+    margin-left: 0.5rem;
 }

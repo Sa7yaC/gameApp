@@ -1,5 +1,5 @@
 import ChatCard from '../../components/ChatCard';
-import '/css/RoomPage.css';
+// import '/css/RoomPage.css';
 
 function RoomPage(){
     return(

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import '../styles/HomePage.css'; // Assuming you have a CSS file for styling
 
 function RoomCard() {
   const [roomCode, setRoomCode] = useState('');
@@ -42,11 +43,11 @@ function RoomCard() {
       <div className="roomCard">
         <h2>Start Playing</h2>
         <div className="joinRoom">
-          <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} />
-          <button onClick={joinRoomAction}>Join Room</button>
+          <input placeholder='Enter room code' type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} />
+          <button className='joinbtn' onClick={joinRoomAction}>Join</button>
         </div>
         <div className="createRoom">
-          <button onClick={createRoomAction}>Create Room</button>
+          <button className='createBtn' onClick={createRoomAction}>Create Room</button>
         </div>
       </div>
     </section>

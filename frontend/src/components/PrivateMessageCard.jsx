@@ -1,8 +1,7 @@
 import useSocket from "../hooks/useSocket";
-import { scoreMap, toScore } from "../utils/score";  // import the shared map & function
+// import { scoreMap, toScore } from "../utils/score";  // import the shared map & function
 import { useParams } from "react-router-dom";
 import { useRef, useEffect, useState } from "react";
-import '../styles/chatcard.css';
 
 function ChatCard() {
   const { roomId } = useParams();
@@ -19,18 +18,18 @@ function ChatCard() {
   }, [messages]);
 
   // Join chat when clicking "Join Chat"
-  const handleJoin = () => {
-    if (username.trim()) {
-      socket.connect();
-      socket.emit("joinRoom", { roomId, username });
-      setHasJoined(true);
-      toScore(username);  // Add user to scoreMap with initial score 0
-      console.log("Current scoreMap entries after join:");
-      scoreMap.forEach((score, user) => {
-        console.log(`${user}: ${score}`);
-      });
-    }
-  };
+//   const handleJoin = () => {
+//     if (username.trim()) {
+//       socket.connect();
+//       socket.emit("joinRoom", { roomId, username });
+//       setHasJoined(true);
+//       toScore(username);  // Add user to scoreMap with initial score 0
+//       console.log("Current scoreMap entries after join:");
+//       scoreMap.forEach((score, user) => {
+//         console.log(`${user}: ${score}`);
+//       });
+//     }
+//   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -52,12 +51,16 @@ function ChatCard() {
   };
 
   const privateMessaging = ()=>{
-
+    socket.on("private message",({content,from})=>{
+        for(let i=0;i<messages.length;i++){
+            const user = this.user[i];
+        }
+    });
   }
 
   return (
     <div className="chat-card">
-      {/* Ask for username before joining */}
+      {/* Ask for username before joining
       {!hasJoined && (
         <div className="username-setup">
           <input
@@ -67,7 +70,7 @@ function ChatCard() {
           />
           <button onClick={handleJoin}>Join Chat</button>
         </div>
-      )}
+      )} */}
 
       {/* Messages list */}
       {hasJoined && (
@@ -75,21 +78,24 @@ function ChatCard() {
         <div className="messageBox">
             <ul ref={messagesRef} className="message-list">
               {messages.map((msg, index) => (
-                <li key={index} style={msg.isKeywordMessage ? { color: 'green' } : {}}>
+                <li key={index}>
                   <strong>{msg.user}:</strong> {msg.text}
                 </li>
               ))}
             </ul>
             <div className="sendMessage">
               {/* Chat input form */}
-              <form onSubmit={handleSubmit} className="chat-form">
+              <form onSubmit={privateMessaging} className="chat-form">
                 <input
                   autoComplete="off"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Type a message..."
                 />
-                <button type="submit">Send</button> 
+                <button type="submit">Send</button>
+                <button type="button" onClick={handleToggle}>
+                  {isConnected ? "Disconnect" : "Connect"}
+                </button>
               </form>
             </div>      
         </div>

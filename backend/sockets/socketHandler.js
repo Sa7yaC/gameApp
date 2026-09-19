@@ -1,3 +1,6 @@
+import { contestants } from "../controllers/room.controller.js";
+import { ApiError } from "../utils/ApiError.js";
+
 // sockets/socketHandler.js
 const users = {}; // { socket.id: username }
 
@@ -10,15 +13,18 @@ export const initSocket = (io) => {
             socket.join(roomId);
 
             // Store the username for this socket
-            users[socket.id] = username;
-
-            console.log(`${username} joined room: ${roomId}`);
-
+            if(contestants(username)){
+                users[socket.id] = username;
+                console.log(`${username} joined room: ${roomId}`);
+            }
+            else{
+                throw new ApiError(400, "Change the username");
+            }
             // Notify others in the room
-            socket.to(roomId,username).emit("chat message", {
-                user: "Room",
-                text: `New player joined the room`
-            });
+            // socket.to(roomId,username).emit("chat message", {
+            //     user: "Room",
+            //     text: `New player joined the room`
+            // });
         });
 
         // Handle chat messages
@@ -34,26 +40,32 @@ export const initSocket = (io) => {
                 }
                 io.to(roomId).emit("chat message", {
                     user: username,
-                    text: newMessage
+                    text: newMessage,
+                    isKeywordMessage: true
                 });
             }
             else{
                 io.to(roomId).emit("chat message", {
                     user: username,
-                    text: message
+                    text: message,
+                    isKeywordMessage: false
                 });
             }
         });
+
+        // Private messaging
+        socket.on("private message",({content, to})=>{
+            socket.to(to).emit("private message", {
+                content,
+                from: socket.userId
+            });
+        })
 
         // Handle disconnect
         socket.on("disconnect", () => {
             const username = users[socket.id];
             console.log(`${username || "A user"} disconnected`);
             delete users[socket.id];
-        });
-        io.to(socket.id).emit("chat message", {
-            user: username,
-            text: message
         });
     });
 };

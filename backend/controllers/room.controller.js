@@ -26,3 +26,17 @@ export const joinRoom = async (req, res) => {
 
     res.status(200).json({ success: true, roomId });
 };
+
+const contestantsList = new Map();
+
+export const contestants = async(userName)=>{
+    if(contestantsList.has(userName)){
+        return false;
+    }
+    else{
+        contestantsList.set(userName);
+        console.log(userName);
+        return true;
+    }
+}
+

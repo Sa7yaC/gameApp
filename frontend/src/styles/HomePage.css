@@ -5,7 +5,9 @@
 section{;
     padding-left: 7rem;
     padding-right: 7rem;
+    margin: auto;
     justify-content: center;
+    align-item: center;
     display: flex;
 }
 .roomCard{

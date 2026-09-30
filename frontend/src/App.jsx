@@ -1,16 +1,20 @@
-// App.jsx
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import RoomCard from './components/RoomCard';
-import ChatCard from './components/ChatCard';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SocketProvider } from './context/SocketContext';
+import LandingPage from './pages/LandingPage';
+import GameRoom from './pages/GameRoom';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<RoomCard />} />
-        <Route path="/room/:roomId" element={<ChatCard />} />
-      </Routes>
-    </Router>
+    <SocketProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/room/:roomId" element={<GameRoom />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </SocketProvider>
   );
 }
 

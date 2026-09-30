@@ -1,11 +1,10 @@
-// server.js
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import connectDB from './config/db.js';
+import { initDatabases } from './config/db.js';
 import roomRoutes from './routes/room.routes.js';
 import { initSocket } from './sockets/socketHandler.js';
 
@@ -15,34 +14,38 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
 app.use(bodyParser.json());
 app.use(roomRoutes);
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:5173',
+        origin: '*',
         methods: ['GET', 'POST']
     }
 });
 
-// Init DB
+// Init Databases (PostgreSQL & Redis)
 (async () => {
     try {
-        await connectDB();
-        console.log("DB Connected Successfully");
+        await initDatabases();
     } catch (err) {
-        console.error("DB Connection Error:", err);
+        console.error('Database Initialization Error:', err);
     }
 })();
 
-// Init Socket
+// Init Socket.io game state handler
 initSocket(io);
 
 server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`🚀 Emoji Movie Game Backend running at http://localhost:${port}`);
 });

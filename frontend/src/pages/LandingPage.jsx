@@ -5,8 +5,7 @@ import { ArrowRight, Copy, RefreshCw } from 'lucide-react';
 import GameIcon from '../components/GameIcon';
 import sounds from '../utils/soundEffects';
 import { generateNordpassUsername } from '../utils/nordpassUsername';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import BACKEND_URL from '../config/backend';
 
 /* 3D-style icon: two characters + plus badge (Create Room) */
 const CreateRoomIcon = () => (

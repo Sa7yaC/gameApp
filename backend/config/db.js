@@ -10,13 +10,24 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const { Pool } = pg;
 
-// PostgreSQL Pool
+// Prefer the managed database URL; keep individual settings for local development.
+const postgresConfig = process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ...(process.env.NODE_ENV === 'production'
+            ? { ssl: { rejectUnauthorized: false } }
+            : {})
+    }
+    : {
+        host: process.env.PG_HOST || 'localhost',
+        port: parseInt(process.env.PG_PORT || '5434', 10),
+        user: process.env.PG_USER || 'gameuser',
+        password: process.env.PG_PASSWORD || 'gamepass',
+        database: process.env.PG_DATABASE || 'gameapp'
+    };
+
 export const pgPool = new Pool({
-    host: process.env.PG_HOST || 'localhost',
-    port: parseInt(process.env.PG_PORT || '5434', 10),
-    user: process.env.PG_USER || 'gameuser',
-    password: process.env.PG_PASSWORD || 'gamepass',
-    database: process.env.PG_DATABASE || 'gameapp',
+    ...postgresConfig,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
@@ -45,7 +56,7 @@ export const initDatabases = async () => {
     // Initialize PostgreSQL Schema
     try {
         const client = await pgPool.connect();
-        console.log('✅ PostgreSQL connected successfully on port', process.env.PG_PORT || 5434);
+        console.log('✅ PostgreSQL connected successfully.');
         
         await client.query(`
             CREATE TABLE IF NOT EXISTS rooms (

@@ -4,8 +4,8 @@ import { Search, Send, Trash2, AlertTriangle, X, ChevronLeft, ChevronRight } fro
 import GameIcon from './GameIcon';
 import sounds from '../utils/soundEffects';
 import { FALLBACK_EMOJI_CATEGORIES } from '../utils/emojiData';
+import BACKEND_URL from '../config/backend';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const EMOJI_LS_KEY = 'charades_emoji_data_v3';
 const PAGE_SIZE = 120;   // emojis rendered per chunk (keeps DOM light while scrolling)
 const SEARCH_CAP = 72;

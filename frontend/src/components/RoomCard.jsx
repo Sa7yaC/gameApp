@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import '../styles/HomePage.css'; // Assuming you have a CSS file for styling
+import BACKEND_URL from '../config/backend';
 
 function RoomCard() {
   const [roomCode, setRoomCode] = useState('');
@@ -11,7 +12,7 @@ function RoomCard() {
   const createRoomAction = async () => {
     const userId = prompt("Enter your username");
     try {
-      const response = await axios.post('http://localhost:3001/createRoom', { userId });
+      const response = await axios.post(`${BACKEND_URL}/createRoom`, { userId });
       alert(`Room Created: ${response.data.roomId}`);
       navigate(`/room/${response.data.roomId}`);
     } catch (error) {
@@ -23,7 +24,7 @@ function RoomCard() {
     if (!roomCode.trim()) return alert("Enter a room code");
 
     try {
-      const response = await axios.post('http://localhost:3001/joinRoom', { roomId: roomCode });
+      const response = await axios.post(`${BACKEND_URL}/joinRoom`, { roomId: roomCode });
       navigate(`/room/${roomCode}`);
     } catch (error) {
       alert("Room doesn't exist");

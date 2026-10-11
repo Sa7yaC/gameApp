@@ -10,7 +10,9 @@ import MoviePickerModal from '../components/MoviePickerModal';
 import PodiumModal from '../components/PodiumModal';
 import sounds from '../utils/soundEffects';
 import { generateNordpassUsername } from '../utils/nordpassUsername';
-import { Volume2, VolumeX, LogOut, Film, Clock, Dices } from 'lucide-react';
+import { Volume2, VolumeX, LogOut, Clock, Dices, Flag, Users } from 'lucide-react';
+import { PlayerAvatar } from '../components/LobbyAvatars';
+import GameIcon from '../components/GameIcon';
 import '../styles/GameRoom.css';
 
 export default function GameRoom() {
@@ -270,6 +272,10 @@ export default function GameRoom() {
         sounds.playTurnStart();
     };
 
+    const handleToggleReady = () => {
+        socket.emit('toggleReady');
+    };
+
     const handleSelectMovie = (movieTitle) => {
         socket.emit('selectMovie', { movieTitle });
     };
@@ -295,6 +301,17 @@ export default function GameRoom() {
         const muted = sounds.toggleMute();
         setIsMuted(muted);
     };
+
+    // Turn position among active guessers (e.g. "Turn 2 / 4")
+    const activeGuessers = players.filter((p) => !p.isSpectator);
+    const turnIndexInRound = activeGuessers.findIndex((p) => p.id === currentActorId);
+    const turnNumber = turnIndexInRound >= 0 ? turnIndexInRound + 1 : 0;
+    const turnTotal = activeGuessers.length;
+
+    // Timer as mm:ss + progress percentage
+    const timerMinutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+    const timerSeconds = String(Math.max(0, timeLeft % 60)).padStart(2, '0');
+    const timerPct = Math.max(3, Math.min(100, (timeLeft / (settings?.guessingTime || 90)) * 100));
 
     // Modal if joined via invite link without username
     if (promptUser) {
@@ -337,46 +354,58 @@ export default function GameRoom() {
         <div className={`gameroom-container ${gameState === 'LOBBY' ? 'is-lobby' : ''}`}>
             {/* Top Navigation Bar: Only during active gameplay */}
             {gameState !== 'LOBBY' && (
-                <header className="gameroom-header">
-                    <div className="header-left">
-                        <div className="game-brand" onClick={() => navigate('/')} title="Return to Home">
-                            <img src="/emojicharades-logo.png" alt="EmojiCharades" className="gameroom-brand-logo" />
-                        </div>
-
-                        <div className="header-room-pill">
-                            <span className="pill-sub">ROOM:</span>
-                            <strong className="pill-code">{roomId}</strong>
-                        </div>
-
-                        <div className="round-counter-pill">
-                            <span>Round {currentRound} / {totalRounds}</span>
-                        </div>
+                <header className="gs-topbar">
+                    <div className="gs-topbar-brand" onClick={() => navigate('/')} title="Return to Home">
+                        <img src="/emojicharades-logo.png" alt="EmojiCharades" className="gs-topbar-logo" draggable={false} />
                     </div>
 
-                    {/* Timer Bar (in game phase) */}
-                    {gameState === 'PLAYING' && (
-                        <div className={`turn-clock-pill ${timeLeft <= 10 ? 'urgent' : ''}`}>
-                            <Clock size={18} />
-                            <span className="clock-time">{timeLeft}s</span>
+                    <div className="gs-topbar-chips">
+                        <div className="gs-chip">
+                            <Flag size={14} className="gs-chip-flag" />
+                            <span>Round {currentRound} / {totalRounds}</span>
                         </div>
-                    )}
 
-                    <div className="header-right">
+                        {turnTotal > 0 && (
+                            <div className="gs-chip">
+                                <Users size={14} className="gs-chip-users" />
+                                <span>Turn {turnNumber > 0 ? turnNumber : 1} / {turnTotal}</span>
+                            </div>
+                        )}
+
+                        {actorName && (
+                            <div className="gs-turn-chip">
+                                <PlayerAvatar name={actorName} size={26} className="gs-turn-avatar" />
+                                <span>{actorName}'s Turn</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="gs-topbar-side">
+                        {gameState === 'PLAYING' && (
+                            <div className={`gs-timer${timeLeft <= 10 ? ' urgent' : ''}`}>
+                                <Clock size={20} className="gs-timer-icon" />
+                                <span className="gs-timer-time">{timerMinutes}:{timerSeconds}</span>
+                                <span className="gs-timer-track">
+                                    <span className="gs-timer-fill" style={{ width: `${timerPct}%` }} />
+                                </span>
+                            </div>
+                        )}
+
                         <button
                             onClick={toggleMute}
-                            className="header-icon-btn"
+                            className="gs-icon-btn"
                             title={isMuted ? 'Unmute audio' : 'Mute audio'}
                         >
-                            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
                         </button>
 
                         <button
                             onClick={handleLeaveRoom}
-                            className="header-icon-btn leave-btn"
+                            className="gs-leave-btn"
                             title="Leave Room"
                         >
-                            <LogOut size={18} />
-                            <span>Leave</span>
+                            <GameIcon name="leave" size={17} alt="Leave room" fallback={<LogOut size={15} />} />
+                            <span>Leave Room</span>
                         </button>
                     </div>
                 </header>
@@ -393,6 +422,7 @@ export default function GameRoom() {
                         settings={settings}
                         onUpdateSettings={handleUpdateSettings}
                         onStartGame={handleStartGame}
+                        onToggleReady={handleToggleReady}
                         onLeaveRoom={handleLeaveRoom}
                         currentUser={username || localStorage.getItem('cine_username') || 'Sa7yaaa'}
                     />
@@ -400,9 +430,9 @@ export default function GameRoom() {
 
                 {/* GAME ACTIVE VIEWS (CHOOSING_MOVIE / PLAYING / TURN_REVEAL) */}
                 {gameState !== 'LOBBY' && gameState !== 'GAME_OVER' && (
-                    <div className="gameplay-split-layout">
-                        {/* Left: Scoreboard */}
-                        <aside className="gameplay-left-pane">
+                    <div className="gs-layout">
+                        {/* Left: Players scoreboard */}
+                        <aside className="gs-pane gs-pane-left">
                             <ScoreboardSidebar
                                 players={players}
                                 currentActorId={currentActorId}
@@ -410,27 +440,17 @@ export default function GameRoom() {
                         </aside>
 
                         {/* Center: Stage / Clue Board / Emoji Keyboard */}
-                        <section className="gameplay-center-pane">
+                        <section className="gs-pane gs-pane-center">
                             {/* Actor Picking Screen for other players */}
                             {gameState === 'CHOOSING_MOVIE' && !isActor && (
-                                <div className="waiting-actor-stage">
-                                    <div className="film-reel-loader">🎬</div>
+                                <div className="gs-wait-stage">
+                                    <div className="gs-wait-reel">🎬</div>
                                     <h2>{actorName} is choosing a movie...</h2>
                                     <p>Get ready to guess! Turn starts in <strong>{timeLeft}s</strong></p>
                                 </div>
                             )}
 
-                            {/* Turn Reveal Screen */}
-                            {gameState === 'TURN_REVEAL' && turnRevealInfo && (
-                                <div className="turn-reveal-banner">
-                                    <span className="reveal-tag">TIME'S UP!</span>
-                                    <h2>The movie was: <span className="highlight-title">{turnRevealInfo.movie}</span></h2>
-                                    {turnRevealInfo.hints && <p className="reveal-hint">💡 {turnRevealInfo.hints}</p>}
-                                    <span className="next-turn-wait">Next turn begins in 5 seconds...</span>
-                                </div>
-                            )}
-
-                            {/* Clue Board */}
+                            {/* Clue Board (movie reveal appears inside the clue area) */}
                             {(gameState === 'PLAYING' || gameState === 'TURN_REVEAL') && (
                                 <ClueBoard
                                     actorName={actorName}
@@ -443,6 +463,7 @@ export default function GameRoom() {
                                     wordCount={movieWordCount}
                                     clues={clues}
                                     phase={gameState}
+                                    revealMovie={turnRevealInfo?.movie || ''}
                                 />
                             )}
 
@@ -458,7 +479,7 @@ export default function GameRoom() {
                         </section>
 
                         {/* Right: Live Chat & Guesses */}
-                        <aside className="gameplay-right-pane">
+                        <aside className="gs-pane gs-pane-right">
                             <ChatSection
                                 messages={chatMessages}
                                 onSendMessage={handleSendMessage}

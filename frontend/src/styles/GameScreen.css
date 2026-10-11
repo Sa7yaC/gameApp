@@ -1,0 +1,1401 @@
+/* ==========================================================
+   EMOJI CHARADES — GAME SCREEN
+   Floating pill topbar, Players / Stage / Guesses panels
+   ========================================================== */
+
+/* dreamy cinema scene behind the whole game */
+.gameroom-container:not(.is-lobby) {
+  background:
+    linear-gradient(180deg, rgba(248, 247, 255, 0.5) 0%, rgba(246, 244, 254, 0.6) 55%, rgba(250, 248, 255, 0.75) 100%),
+    url('/cinema-bg.jpg') center / cover no-repeat var(--bg-main);
+}
+
+/* ---------------- top pill bar ---------------- */
+/* desktop only: hard-cap the stage so the chat feed scrolls INSIDE the panel
+   (main-stage's default min-height:auto otherwise grows with message content) */
+@media (min-width: 1151px) {
+  .gameroom-main-stage {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+.gs-topbar {
+  flex: none;
+  margin: 14px 16px 2px;
+  padding: 9px 12px 9px 18px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 34px rgba(37, 46, 106, 0.14);
+  position: relative;
+  z-index: 30;
+}
+
+.gs-topbar-brand {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex: none;
+}
+
+.gs-topbar-logo {
+  height: 38px;
+  width: auto;
+  user-select: none;
+}
+
+.gs-topbar-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.gs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #eef0fe;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a3261;
+  white-space: nowrap;
+}
+
+.gs-chip-flag {
+  color: #6c4ee0;
+}
+
+.gs-chip-users {
+  color: #6474e4;
+}
+
+.gs-turn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 16px 0 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2px solid #a89af8;
+  font-family: 'Nunito', sans-serif;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #6c4ee0;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(124, 92, 250, 0.18);
+}
+
+.gs-turn-avatar {
+  border-radius: 50%;
+  flex: none;
+}
+
+.gs-topbar-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.gs-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #fff4e3;
+}
+
+.gs-timer-icon {
+  color: #ff8a1e;
+  flex: none;
+}
+
+.gs-timer-time {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  color: #1e2956;
+  min-width: 52px;
+}
+
+.gs-timer-track {
+  width: 96px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ffe0b8;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.gs-timer-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb13b 0%, #ff8a1e 100%);
+  transition: width 0.9s linear;
+}
+
+.gs-timer.urgent .gs-timer-icon {
+  color: #f0483c;
+  animation: gs-timer-blink 0.7s ease-in-out infinite alternate;
+}
+
+.gs-timer.urgent {
+  background: #ffe7e5;
+}
+
+.gs-timer.urgent .gs-timer-fill {
+  background: linear-gradient(90deg, #ff7b6e 0%, #ef3b2d 100%);
+}
+
+@keyframes gs-timer-blink {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+
+.gs-icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 230, 248, 0.9);
+  background: #ffffff;
+  color: #5a6590;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gs-icon-btn:hover {
+  background: #f2f4ff;
+  color: #41497b;
+}
+
+.gs-leave-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid #ffd2cd;
+  background: #ffefec;
+  color: #e5493b;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.gs-leave-btn:hover {
+  background: #ffe0da;
+  transform: translateY(-1px);
+}
+
+/* ---------------- 3-pane game layout ---------------- */
+.gs-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px 1fr 330px;
+  gap: 16px;
+  padding: 14px 16px 16px;
+  overflow: hidden;
+}
+
+.gs-pane {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+.gs-pane-center {
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.gs-pane-left,
+.gs-pane-right {
+  flex-direction: column;
+}
+
+/* ---------------- panels ---------------- */
+.gs-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(252, 253, 255, 0.94));
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(37, 46, 106, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.gs-panel-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 12px;
+}
+
+.gs-panel-title {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 19px;
+  color: #1b2559;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.gs-panel-count {
+  font-size: 15px;
+  color: #8a94b8;
+}
+
+/* ---------------- players panel rows ---------------- */
+.gs-players-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 0 12px 12px;
+}
+
+.gs-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 15px;
+  background: #f5f7fd;
+  border: 1px solid rgba(226, 232, 249, 0.7);
+  transition: transform 0.15s ease;
+}
+
+.gs-player-row.is-turn {
+  background: linear-gradient(180deg, #fff5d6 0%, #ffedba 100%);
+  border-color: #ffe2a0;
+  box-shadow: 0 6px 16px rgba(255, 178, 40, 0.28);
+}
+
+.gs-player-avatar {
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(31, 38, 98, 0.14);
+}
+
+.gs-player-row.is-turn .gs-player-avatar {
+  box-shadow: 0 0 0 2.5px #ffd76a, 0 3px 8px rgba(31, 38, 98, 0.14);
+}
+
+.gs-player-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gs-player-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.gs-player-name {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: #232c5a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.gs-host-crown {
+  flex: none;
+  color: #eda32f;
+}
+
+.gs-turn-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e08a00;
+}
+
+.gs-turn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff9e2c;
+  animation: gs-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes gs-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.7); opacity: 0.55; }
+}
+
+.gs-player-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8a94b8;
+}
+
+.gs-player-status.guessed {
+  color: #1e9e55;
+}
+
+.gs-player-status.muted {
+  color: #a5aec9;
+}
+
+.gs-player-score {
+  flex: none;
+  min-width: 44px;
+  text-align: center;
+  padding: 5px 10px;
+  border-radius: 11px;
+  background: #ffe9bf;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 14.5px;
+  color: #b97a0d;
+}
+
+.gs-player-score.hot {
+  background: #ffc24b;
+  color: #7a4e00;
+  box-shadow: 0 3px 8px rgba(255, 178, 40, 0.4);
+}
+
+/* ---------------- center stage card ---------------- */
+.gs-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(252, 253, 255, 0.94));
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(37, 46, 106, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.gs-stage {
+  flex: none;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.gs-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: #eceafe;
+  color: #6c4ee0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.gs-stage-title {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: clamp(22px, 2.2vw, 28px);
+  color: #1b2559;
+  letter-spacing: -0.2px;
+}
+
+.gs-secret-movie {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #f6f4ff;
+  border: 1.5px solid #e0d9fb;
+}
+
+.gs-secret-lock {
+  color: #a893f5;
+  flex: none;
+}
+
+.gs-secret-title {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #352a67;
+}
+
+.gs-secret-hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a86a8;
+  padding-left: 10px;
+  border-left: 1.5px solid #e4defc;
+}
+
+/* dropped clue emojis */
+.gs-clue-board {
+  width: 100%;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* hint chips row */
+.gs-hint-chips {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  justify-content: center;
+}
+
+.gs-hint-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #eef0fe;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2a3261;
+}
+
+.gs-hint-chip svg {
+  color: #6c4ee0;
+  flex: none;
+}
+
+.gs-hint-chip.is-tip {
+  background: #f4f2ff;
+}
+
+/* clue display board */
+.gs-clues-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.gs-clues-empty-emoji {
+  font-size: 30px;
+  animation: gs-reel-spin 2.4s ease-in-out infinite;
+}
+
+@keyframes gs-reel-spin {
+  0%, 100% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+}
+
+.gs-clues-empty p {
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  color: #9aa6c6;
+}
+
+.gs-clue-latest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  justify-content: center;
+}
+
+.gs-clue-tile {
+  width: 68px;
+  height: 68px;
+  border-radius: 17px;
+  background: #f7faff;
+  border: 1.5px solid #e8edf8;
+  box-shadow: 0 6px 16px rgba(47, 58, 130, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  line-height: 1;
+  animation: gs-tile-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes gs-tile-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.gs-clue-history {
+  margin-top: 12px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gs-clue-history-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: 100%;
+  padding: 6px 11px;
+  border-radius: 11px;
+  background: #f5f7fd;
+}
+
+.gs-clue-hist-num {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #a5aec9;
+}
+
+.gs-clue-hist-emos {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+/* ---------------- actor movie-wait state ---------------- */
+.gs-wait-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 30px 22px;
+}
+
+.gs-wait-reel {
+  font-size: 44px;
+  animation: gs-reel-spin 1.6s ease-in-out infinite;
+}
+
+.gs-wait-stage h2 {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  color: #1b2559;
+}
+
+.gs-wait-stage p {
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  color: #7a86a8;
+}
+
+/* movie reveal shown in the clue area when time's up */
+.gs-movie-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffedc0 0%, #ffe29a 100%);
+  border: 1.5px solid #ffd979;
+  box-shadow: 0 8px 22px rgba(255, 178, 40, 0.32);
+  animation: gs-tile-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.gs-movie-reveal span {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  color: #8a5200;
+}
+
+/* ---------------- emoji keyboard (actor) ---------------- */
+.actor-controls-section,
+.gs-pane-center > .actor-controls-section {
+  flex: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gs-emoji-keyboard {
+  flex: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(252, 253, 255, 0.94));
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(37, 46, 106, 0.14);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gs-selected-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+}
+
+.gs-selected-label {
+  flex: none;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #1b2559;
+}
+
+.gs-selected-tiles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 4px 2px;
+}
+
+.gs-selected-empty {
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  color: #a5aec9;
+}
+
+.gs-selected-tile {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1.5px solid #e3e9f6;
+  background: #f7faff;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gs-selected-tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(47, 58, 130, 0.15);
+}
+
+.gs-selected-tile:disabled {
+  cursor: not-allowed;
+}
+
+.gs-tile-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  padding: 2.5px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #8a94b8;
+  border: 1px solid #e3e9f6;
+  box-shadow: 0 2px 5px rgba(47, 58, 130, 0.15);
+}
+
+.gs-selected-tile:hover .gs-tile-x {
+  color: #e5493b;
+  border-color: #ffd6ce;
+}
+
+.gs-clear-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid #ffd9d3;
+  background: #fff2ef;
+  color: #e56a5b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.gs-clear-btn:hover:not(:disabled) {
+  background: #ffe6e0;
+}
+
+.gs-clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gs-send-emoji-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #9080fa 0%, #6a38ef 100%);
+  color: #ffffff;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 14.5px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(106, 56, 239, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.18s ease;
+}
+
+.gs-send-emoji-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+}
+
+.gs-send-emoji-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.gs-emoji-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-radius: 12px;
+  background: #fff4e0;
+  border: 1px solid #ffe1ad;
+  color: #b06e0a;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  animation: gs-tile-pop 0.3s ease;
+}
+
+.gs-picker-wrap {
+  border-top: 1.5px dashed rgba(214, 222, 241, 0.9);
+  padding-top: 8px;
+}
+
+/* fast curated emoji keyboard */
+.gs-emoji-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gs-emoji-tablist {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+
+.gs-emoji-tablist::-webkit-scrollbar {
+  display: none;
+}
+
+/* carousel arrows for the category tabs */
+.gs-carousel-btn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid #e3e9f6;
+  background: #ffffff;
+  color: #6c4ee0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(47, 58, 130, 0.08);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.gs-carousel-btn:hover {
+  background: #f4f2ff;
+  transform: scale(1.07);
+}
+
+.gs-carousel-btn:active {
+  transform: scale(0.95);
+}
+
+.gs-carousel-btn.is-hidden {
+  display: none;
+}
+
+.gs-emoji-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: #7a86a8;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gs-emoji-tab:hover {
+  background: #f3f6fe;
+  color: #2a3261;
+}
+
+.gs-emoji-tab.active {
+  background: #edebfe;
+  color: #6c4ee0;
+}
+
+.gs-emoji-tab-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.gs-emoji-search {
+  flex: none;
+  width: 172px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid #e3e9f6;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #8a94b8;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gs-emoji-search:focus-within {
+  border-color: #8b7bf6;
+  box-shadow: 0 0 0 3px rgba(136, 128, 246, 0.18);
+}
+
+.gs-emoji-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #232c5a;
+}
+
+.gs-emoji-search input::placeholder {
+  color: #a5aec9;
+}
+
+.gs-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 3px;
+  min-height: 88px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 4px 2px;
+  scroll-behavior: auto;
+}
+
+.gs-emoji-cell {
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 21px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.gs-emoji-cell:hover:not(:disabled) {
+  background: #edebfe;
+  transform: scale(1.14);
+}
+
+.gs-emoji-cell:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.gs-emoji-cell:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gs-emoji-sentinel {
+  grid-column: 1 / -1;
+  height: 2px;
+}
+
+.gs-emoji-none {
+  grid-column: 1 / -1;
+  padding: 22px 0;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #a5aec9;
+}
+
+/* ---------------- chat / guesses panel ---------------- */
+.gs-chat-panel {
+  padding: 0 12px 12px 4px;
+}
+
+.gs-chat-panel .gs-panel-header {
+  padding: 16px 12px 10px 12px;
+}
+
+.gs-chat-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 0 8px;
+}
+
+.gs-chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.gs-chat-avatar {
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(31, 38, 98, 0.14);
+  margin-top: 2px;
+}
+
+.gs-chat-bubble {
+  flex: 1;
+  min-width: 0;
+  background: #f5f7fd;
+  border-radius: 4px 14px 14px 14px;
+  padding: 8px 12px;
+}
+
+.gs-chat-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.gs-chat-name {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #232c5a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-chat-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3c4562;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.gs-chat-warning {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: #fff4e0;
+  border: 1px solid #ffe1ad;
+  color: #b06e0a;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  max-width: 92%;
+}
+
+.gs-chat-celebration {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ede9fe 0%, #e3ecff 100%);
+  color: #5b48c8;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.gs-chat-correct {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #e9f9f0 0%, #ddf4e7 100%);
+  border: 1px solid #c5ecd7;
+}
+
+.gs-correct-icon {
+  color: #1e9e55;
+  flex: none;
+}
+
+.gs-chat-correct-name {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #17814a;
+}
+
+.gs-chat-correct-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2fa46a;
+}
+
+/* input row */
+.gs-chat-input-row {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 0 8px;
+}
+
+.gs-chat-input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 15px;
+  border-radius: 14px;
+  border: 1.5px solid #e3e9f5;
+  background: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #232c5a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gs-chat-input::placeholder {
+  color: #a5aec9;
+}
+
+.gs-chat-input:focus {
+  border-color: #8b7bf6;
+  box-shadow: 0 0 0 3px rgba(136, 128, 246, 0.18);
+}
+
+.gs-chat-input.success {
+  border-color: #b8eccb;
+  background: #f6fdf8;
+}
+
+.gs-chat-input:disabled {
+  background: #f3f5fa;
+  cursor: not-allowed;
+}
+
+.gs-chat-send {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #9080fa 0%, #6a38ef 100%);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(106, 56, 239, 0.4);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.gs-chat-send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.gs-chat-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------------- game icon images ---------------- */
+.gi {
+  display: block;
+  object-fit: contain;
+}
+
+.gs-turn-tag .gi,
+.gs-player-status .gi,
+.gs-hint-chip .gi,
+.gs-chat-correct .gi,
+.gs-panel-icon .gi {
+  flex: none;
+}
+
+.gs-turn-tag .gi {
+  margin-top: 1px;
+}
+
+/* visible scrollbars on light panels (global ones assume dark backgrounds) */
+.gs-chat-feed::-webkit-scrollbar,
+.gs-players-scroll::-webkit-scrollbar,
+.gs-pane-center::-webkit-scrollbar,
+.gs-emoji-grid::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.gs-chat-feed::-webkit-scrollbar-track,
+.gs-players-scroll::-webkit-scrollbar-track,
+.gs-pane-center::-webkit-scrollbar-track,
+.gs-emoji-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gs-chat-feed::-webkit-scrollbar-thumb,
+.gs-players-scroll::-webkit-scrollbar-thumb,
+.gs-pane-center::-webkit-scrollbar-thumb,
+.gs-emoji-grid::-webkit-scrollbar-thumb {
+  background: rgba(37, 46, 106, 0.22);
+  border-radius: 4px;
+}
+
+.gs-chat-feed::-webkit-scrollbar-thumb:hover,
+.gs-players-scroll::-webkit-scrollbar-thumb:hover,
+.gs-pane-center::-webkit-scrollbar-thumb:hover,
+.gs-emoji-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 46, 106, 0.4);
+}
+
+/* ---------------- accessibility & responsive ---------------- */
+.gs-chip,
+.gs-turn-chip,
+.gs-icon-btn,
+.gs-leave-btn,
+.gs-selected-tile,
+.gs-clear-btn,
+.gs-send-emoji-btn,
+.gs-chat-send {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gs-chip:focus-within,
+.gs-leave-btn:focus-visible,
+.gs-icon-btn:focus-visible,
+.gs-selected-tile:focus-visible,
+.gs-clear-btn:focus-visible,
+.gs-send-emoji-btn:focus-visible,
+.gs-carousel-btn:focus-visible,
+.gs-chat-send:focus-visible {
+  outline: 3px solid rgba(108, 79, 224, 0.55);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1150px) {
+  .gameroom-container:not(.is-lobby) {
+    height: auto;
+    min-height: 100vh;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .gs-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .gs-pane,
+  .gs-panel {
+    flex: none;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gs-players-panel {
+    max-height: 60vh;
+  }
+
+  .gs-players-scroll {
+    max-height: none;
+    flex: 1;
+  }
+
+  .gs-chat-panel {
+    height: auto;
+    max-height: 72vh;
+  }
+
+  .gs-chat-feed {
+    max-height: none;
+    flex: 1;
+  }
+
+  .gs-pane-center {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 700px) {
+  .gs-emoji-search {
+    width: 118px;
+  }
+
+  .gs-topbar {
+    margin: 10px 10px 0;
+    padding: 10px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .gs-topbar-brand {
+    order: 1;
+  }
+
+  .gs-topbar-side {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .gs-topbar-chips {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .gs-timer-track {
+    width: 56px;
+  }
+
+  .gs-leave-btn span {
+    display: none;
+  }
+
+  .gs-leave-btn {
+    padding: 0 14px;
+  }
+
+  .gs-layout {
+    padding: 12px 10px;
+  }
+
+  .gs-clue-tile {
+    width: 56px;
+    height: 56px;
+    font-size: 27px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-timer-fill,
+  .gs-turn-dot,
+  .gs-wait-reel,
+  .gs-clues-empty-emoji,
+  .gs-clue-tile,
+  .gs-emoji-warning,
+  .gs-timer-icon {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* laptops / shorter windows: keep the whole stage + keyboard visible without scrolling */
+@media (max-height: 820px) {
+  .gs-clue-tile {
+    width: 54px;
+    height: 54px;
+    font-size: 26px;
+    border-radius: 14px;
+  }
+
+  .gs-stage-title {
+    font-size: 20px;
+  }
+
+  .gs-stage-sub {
+    font-size: 13.5px;
+    margin-top: 3px;
+  }
+
+  .gs-emoji-grid {
+    max-height: 128px;
+  }
+
+  .gs-emoji-cell {
+    height: 36px;
+    font-size: 20px;
+  }
+}

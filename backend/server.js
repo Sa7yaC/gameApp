@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { initDatabases } from './config/db.js';
 import roomRoutes from './routes/room.routes.js';
+import emojiRoutes from './routes/emoji.routes.js';
 import { initSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(cors({
 
 app.use(bodyParser.json());
 app.use(roomRoutes);
+app.use('/emojis', emojiRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

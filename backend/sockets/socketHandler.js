@@ -194,16 +194,6 @@ export const initSocket = (io) => {
                 assignedUsername: cleanUsername
             });
 
-            // Announce join to room
-            const joinNotice = {
-                id: 'sys_' + Date.now(),
-                user: 'System',
-                text: `${cleanUsername} joined the game!`,
-                isSystem: true,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            recordChatMessage(room, joinNotice);
-            io.to(room.roomId).emit('chatMessage', joinNotice);
             io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
 
             console.log(`[Socket] ${cleanUsername} (${socket.id}) joined room "${room.roomId}"`);
@@ -454,7 +444,7 @@ export const initSocket = (io) => {
                         id: 'err_' + Date.now(),
                         user: 'System',
                         text: '⚠️ You cannot type the secret movie title in chat! Use emoji clues.',
-                        isSystem: true
+                        isActorWarning: true
                     });
                     return;
                 }
@@ -535,14 +525,6 @@ export const initSocket = (io) => {
             // If current actor disconnected during turn, immediately end turn cleanly
             if (room.currentActorId === socket.id && (room.gameState === 'CHOOSING_MOVIE' || room.gameState === 'PLAYING')) {
                 clearInterval(room.timerInterval);
-                const disconnectNotice = {
-                    id: 'sys_' + Date.now(),
-                    user: 'System',
-                    text: `Actor ${username} disconnected. Moving to next turn...`,
-                    isSystem: true
-                };
-                recordChatMessage(room, disconnectNotice);
-                io.to(room.roomId).emit('chatMessage', disconnectNotice);
                 endTurn(room, 'ACTOR_DISCONNECTED');
             }
 
@@ -569,15 +551,6 @@ export const initSocket = (io) => {
                 // Include any mid-round joiners in next round
                 room.players.forEach(p => { p.isSpectator = false; });
                 room.actorQueue = Array.from(room.players.keys()).sort(() => Math.random() - 0.5);
-
-                const roundMsg = {
-                    id: 'rnd_' + Date.now(),
-                    user: 'System',
-                    text: `🔥 Round ${room.currentRound} of ${room.settings.totalRounds} has begun!`,
-                    isSystem: true
-                };
-                recordChatMessage(room, roundMsg);
-                io.to(room.roomId).emit('chatMessage', roundMsg);
             }
         }
 

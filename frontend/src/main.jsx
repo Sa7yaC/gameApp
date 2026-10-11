@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles/GameRoom.css";
+import "./styles/LandingPage.css";
+import "./styles/GameScreen.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Trophy, Award, Medal, Crown, RotateCcw, Home, Sparkles } from 'lucide-react';
+import GameIcon from './GameIcon';
+import { PlayerAvatar } from './LobbyAvatars';
 import sounds from '../utils/soundEffects';
 
 export default function PodiumModal({
@@ -82,9 +84,9 @@ export default function PodiumModal({
                     <div className="podium-column first-place">
                         {firstPlace ? (
                             <>
-                                <Crown size={32} className="crown-gold float-bounce" />
+                                <GameIcon name="host-crown" size={40} alt="Winner" className="crown-gold float-bounce" fallback={<Crown size={32} className="crown-gold float-bounce" />} />
                                 <div className="podium-avatar-bubble gold-ring">
-                                    <Trophy size={28} className="trophy-gold" />
+                                    <PlayerAvatar name={firstPlace.username} size={30} />
                                 </div>
                                 <span className="podium-player-name highlight-winner">{firstPlace.username}</span>
                                 <span className="podium-score winner-score">{firstPlace.score} pts</span>

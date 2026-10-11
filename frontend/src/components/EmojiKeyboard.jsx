@@ -1,12 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import EmojiPicker, { Theme, EmojiStyle } from 'emoji-picker-react';
-import { Send, Delete, Trash2, Sparkles, AlertTriangle, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { Search, Send, Trash2, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import GameIcon from './GameIcon';
 import sounds from '../utils/soundEffects';
+import { FALLBACK_EMOJI_CATEGORIES } from '../utils/emojiData';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+const EMOJI_LS_KEY = 'charades_emoji_data_v3';
+const PAGE_SIZE = 120;   // emojis rendered per chunk (keeps DOM light while scrolling)
+const SEARCH_CAP = 72;
+
+/* Module-level cache: fetched once per session, persisted in localStorage */
+let emojiDataCache = null;
 
 export default function EmojiKeyboard({ onDropClue, disabled }) {
     // Selected emojis are stored in an array for clean manipulation
     const [selectedEmojis, setSelectedEmojis] = useState([]);
     const [warningMsg, setWarningMsg] = useState('');
+    const [categories, setCategories] = useState(emojiDataCache?.categories || FALLBACK_EMOJI_CATEGORIES);
+    const [activeCatId, setActiveCatId] = useState('people');
+    const [search, setSearch] = useState('');
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const gridRef = useRef(null);
+    const sentinelRef = useRef(null);
+    const tablistRef = useRef(null);
+    const [tabArrows, setTabArrows] = useState({ left: false, right: false });
+
+    /* ---------- dataset: localStorage → backend (Redis) → curated fallback ---------- */
+    useEffect(() => {
+        let alive = true;
+        let attempts = 0;
+        let retryTimer = null;
+
+        const isFullSet = (cats) => Array.isArray(cats) && cats.length >= 8;
+
+        const apply = (cats) => {
+            emojiDataCache = { version: 'v3', categories: cats };
+            try { localStorage.setItem(EMOJI_LS_KEY, JSON.stringify(emojiDataCache)); } catch { /* quota */ }
+            if (alive) setCategories(cats);
+        };
+
+        // Already have the full set in memory?
+        if (isFullSet(emojiDataCache?.categories)) {
+            setCategories(emojiDataCache.categories);
+            return;
+        }
+
+        // localStorage (instant, survives reloads)
+        try {
+            const ls = localStorage.getItem(EMOJI_LS_KEY);
+            if (ls) {
+                const parsed = JSON.parse(ls);
+                if (isFullSet(parsed?.categories)) {
+                    emojiDataCache = parsed;
+                    setCategories(parsed.categories);
+                    return;
+                }
+            }
+        } catch { /* corrupted cache — refetch */ }
+
+        // Backend fetch with retries (self-heals if the server starts after this page)
+        const attempt = () => {
+            if (!alive) return;
+            attempts += 1;
+            axios.get(`${BACKEND_URL}/emojis`, { timeout: 5000 })
+                .then((res) => {
+                    const cats = res.data?.categories;
+                    if (alive && isFullSet(cats)) apply(cats);
+                })
+                .catch(() => {
+                    if (alive && attempts < 5) {
+                        retryTimer = setTimeout(attempt, 2000 * attempts);
+                    }
+                });
+        };
+        attempt();
+
+        return () => {
+            alive = false;
+            if (retryTimer) clearTimeout(retryTimer);
+        };
+    }, []);
 
     // Clear warning after 3.5s
     useEffect(() => {
@@ -15,16 +89,63 @@ export default function EmojiKeyboard({ onDropClue, disabled }) {
         return () => clearTimeout(timer);
     }, [warningMsg]);
 
-    const handleAddEmoji = (emoji) => {
-        if (disabled) return;
-        setSelectedEmojis((prev) => [...prev, emoji]);
-        sounds.playTick?.();
-        setWarningMsg('');
+    // Reset chunked rendering whenever the category or search changes
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+        if (gridRef.current) gridRef.current.scrollTop = 0;
+    }, [activeCatId, search]);
+
+    /* ---------- category tablist carousel arrows ---------- */
+    const updateTabArrows = () => {
+        const el = tablistRef.current;
+        if (!el) {
+            setTabArrows({ left: false, right: false });
+            return;
+        }
+        const scrollable = el.scrollWidth > el.clientWidth + 4;
+        setTabArrows({
+            left: scrollable && el.scrollLeft > 4,
+            right: scrollable && el.scrollLeft < el.scrollWidth - el.clientWidth - 4
+        });
     };
 
-    const handleBackspace = () => {
-        if (disabled || selectedEmojis.length === 0) return;
-        setSelectedEmojis((prev) => prev.slice(0, -1));
+    useEffect(() => {
+        updateTabArrows();
+        const el = tablistRef.current;
+        if (!el) return;
+        el.addEventListener('scroll', updateTabArrows, { passive: true });
+        const ro = new ResizeObserver(updateTabArrows);
+        ro.observe(el);
+        return () => {
+            el.removeEventListener('scroll', updateTabArrows);
+            ro.disconnect();
+        };
+    }, [categories, activeCatId]);
+
+    const scrollTabs = (dir) => {
+        const el = tablistRef.current;
+        if (!el) return;
+        el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.6), behavior: 'smooth' });
+        sounds.playTick?.();
+    };
+
+    /* ---------- handlers (unchanged game logic) ---------- */
+    const handleAddEmoji = (emoji) => {
+        if (disabled) return;
+        setSelectedEmojis((prev) => {
+            if (prev.length >= 24) {
+                setWarningMsg('⚠️ Maximum 24 emojis per clue!');
+                return prev;
+            }
+            setWarningMsg('');
+            return [...prev, emoji];
+        });
+        sounds.playTick?.();
+    };
+
+    const handleRemoveAt = (idx) => {
+        if (disabled) return;
+        setSelectedEmojis((prev) => prev.filter((_, i) => i !== idx));
         sounds.playTick?.();
     };
 
@@ -45,144 +166,172 @@ export default function EmojiKeyboard({ onDropClue, disabled }) {
         sounds.playClue?.();
     };
 
-    // Keyboard controls applied ONLY to the clue box (Backspace, Enter, or blocking words/letters)
-    // NOTE: This does NOT intercept typing in the emoji search input!
-    const handleClueBoxKeyDown = (e) => {
-        if (e.key === 'Backspace') {
-            e.preventDefault();
-            handleBackspace();
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSend();
-        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            // Check if key is a letter, digit, or regular text character
-            if (/[\p{Letter}\p{Number}\p{Punctuation}\p{Symbol}]/u.test(e.key) && !/\p{Extended_Pictographic}/u.test(e.key)) {
-                e.preventDefault();
-                setWarningMsg('🚫 Only emojis are allowed! Words and letters are strictly prohibited in clues.');
-            }
-        }
-    };
+    /* ---------- visible emojis: search (all categories) or active category chunk ---------- */
+    const query = search.trim().toLowerCase();
+    let visibleEmojis;
+    if (query) {
+        visibleEmojis = categories
+            .flatMap((cat) => cat.emojis.filter((item) => item.n.includes(query)))
+            .slice(0, SEARCH_CAP);
+    } else {
+        const cat = categories.find((c) => c.id === activeCatId) || categories[0];
+        visibleEmojis = (cat?.emojis || []).slice(0, visibleCount);
+    }
+    const totalInScope = query
+        ? Math.min(SEARCH_CAP, categories.reduce((acc, c) => acc + c.emojis.filter((i) => i.n.includes(query)).length, 0))
+        : (categories.find((c) => c.id === activeCatId)?.emojis.length || 0);
+    const hasMore = visibleEmojis.length < totalInScope;
 
-    // Sanitize any pasted content into the clue box so only emojis remain
-    const handlePaste = (e) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData?.getData('text') || '';
-        if (!pastedText) return;
+    // Lazy-load more emojis as the grid scrolls near its end
+    useEffect(() => {
+        if (!hasMore) return;
+        const sentinel = sentinelRef.current;
+        const grid = gridRef.current;
+        if (!sentinel || !grid) return;
 
-        // Match all emojis in the pasted text
-        const emojiMatches = pastedText.match(/(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\u200d|\ufe0f|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}])/gu);
-
-        if (emojiMatches && emojiMatches.length > 0) {
-            const hadText = /[\p{Letter}\p{Number}]/u.test(pastedText);
-            setSelectedEmojis((prev) => [...prev, ...emojiMatches]);
-            if (hadText) {
-                setWarningMsg('⚠️ Text was stripped. Only emoji characters were added.');
-            }
-        } else {
-            setWarningMsg('🚫 Only emojis can be pasted! Words and text are blocked.');
-        }
-    };
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount((c) => c + PAGE_SIZE);
+                }
+            },
+            { root: grid, rootMargin: '120px' }
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, visibleEmojis.length]);
 
     return (
-        <div className="emoji-keyboard-container">
-            {/* Header info badge */}
-            <div className="emoji-keyboard-header">
-                <div className="keyboard-header-title">
-                    <Sparkles size={16} className="sparkle-amber" />
-                    <span>ACTOR EMOJI BOARD</span>
-                </div>
-                <div className="emoji-only-pill">
-                    <ShieldCheck size={14} />
-                    <span>Emojis Only • Words Disabled</span>
-                </div>
-            </div>
-
-            {/* Clue Composer Display Bar */}
-            <div className="clue-composer-bar">
-                <div
-                    className={`clue-display-box ${selectedEmojis.length === 0 ? 'empty' : ''}`}
-                    tabIndex={0}
-                    onKeyDown={handleClueBoxKeyDown}
-                    onPaste={handlePaste}
-                    title="Click emojis below to build your clue"
+        <div className="gs-emoji-keyboard">
+            {/* Category tabs carousel + pinned search on the right */}
+            <div className="gs-emoji-header">
+                <button
+                    type="button"
+                    className={`gs-carousel-btn${tabArrows.left ? '' : ' is-hidden'}`}
+                    onClick={() => scrollTabs(-1)}
+                    aria-label="Scroll categories left"
                 >
-                    <span className="clue-input-prefix">💡 Clue:</span>
+                    <ChevronLeft size={15} strokeWidth={3} />
+                </button>
 
-                    {selectedEmojis.length === 0 ? (
-                        <span className="clue-placeholder-text">
-                            Click emojis from the keyboard below to compose your hint...
-                        </span>
-                    ) : (
-                        <div className="selected-emojis-row">
-                            {selectedEmojis.map((emoji, idx) => (
-                                <span key={idx} className="draft-emoji-badge pop-in">
-                                    {emoji}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Quick backspace & clear controls */}
-                    {selectedEmojis.length > 0 && (
-                        <div className="clue-quick-actions">
-                            <button
-                                type="button"
-                                onClick={handleBackspace}
-                                className="composer-icon-btn"
-                                title="Remove last emoji (Backspace)"
-                                disabled={disabled}
-                            >
-                                <Delete size={18} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleClear}
-                                className="composer-icon-btn clear-btn"
-                                title="Clear all emojis"
-                                disabled={disabled}
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                    )}
+                <div className="gs-emoji-tablist" ref={tablistRef}>
+                    {categories.map((cat) => (
+                        <button
+                            key={cat.id}
+                            type="button"
+                            className={`gs-emoji-tab${!query && cat.id === activeCatId ? ' active' : ''}`}
+                            onClick={() => { setActiveCatId(cat.id); setSearch(''); }}
+                            title={cat.label}
+                        >
+                            <GameIcon
+                                name={cat.icon}
+                                size={18}
+                                alt=""
+                                fallback={<span className="gs-emoji-tab-emoji">{cat.emoji}</span>}
+                            />
+                            <span>{cat.label}</span>
+                        </button>
+                    ))}
                 </div>
 
                 <button
                     type="button"
+                    className={`gs-carousel-btn${tabArrows.right ? '' : ' is-hidden'}`}
+                    onClick={() => scrollTabs(1)}
+                    aria-label="Scroll categories right"
+                >
+                    <ChevronRight size={15} strokeWidth={3} />
+                </button>
+
+                <div className="gs-emoji-search">
+                    <GameIcon name="cat-search" size={14} alt="" fallback={<Search size={14} />} />
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search emojis..."
+                        maxLength={30}
+                        aria-label="Search emojis"
+                    />
+                </div>
+            </div>
+
+            {/* Fast, chunk-rendered emoji grid */}
+            <div className="gs-emoji-grid" ref={gridRef}>
+                {visibleEmojis.map((item, idx) => (
+                    <button
+                        key={`${item.e}-${idx}`}
+                        type="button"
+                        className="gs-emoji-cell"
+                        onClick={() => handleAddEmoji(item.e)}
+                        disabled={disabled}
+                        title={item.n}
+                    >
+                        {item.e}
+                    </button>
+                ))}
+                {visibleEmojis.length === 0 && (
+                    <span className="gs-emoji-none">No emojis found for “{query}”</span>
+                )}
+                {hasMore && <div ref={sentinelRef} className="gs-emoji-sentinel" />}
+            </div>
+
+            {/* Selected clue strip */}
+            <div className="gs-selected-row">
+                <span className="gs-selected-label">
+                    {selectedEmojis.length > 0 ? `Selected (${selectedEmojis.length})` : 'Selected'}
+                </span>
+
+                <div className="gs-selected-tiles">
+                    {selectedEmojis.length === 0 ? (
+                        <span className="gs-selected-empty">Tap an emoji above to build your clue…</span>
+                    ) : (
+                        selectedEmojis.map((emoji, idx) => (
+                            <button
+                                key={`se-${idx}`}
+                                type="button"
+                                className="gs-selected-tile"
+                                onClick={() => handleRemoveAt(idx)}
+                                disabled={disabled}
+                                title="Remove this emoji"
+                            >
+                                <span>{emoji}</span>
+                                <X className="gs-tile-x" size={11} strokeWidth={3} />
+                            </button>
+                        ))
+                    )}
+                </div>
+
+                {selectedEmojis.length > 0 && (
+                    <button
+                        type="button"
+                        className="gs-clear-btn"
+                        onClick={handleClear}
+                        disabled={disabled}
+                        title="Clear all selected emojis"
+                    >
+                        <Trash2 size={15} />
+                    </button>
+                )}
+
+                <button
+                    type="button"
+                    className="gs-send-emoji-btn"
                     onClick={handleSend}
                     disabled={disabled || selectedEmojis.length === 0}
-                    className="drop-clue-btn"
                 >
                     <Send size={16} />
-                    <span>Drop Clue {selectedEmojis.length > 0 ? `(${selectedEmojis.length})` : ''}</span>
+                    <span>Send Emoji</span>
                 </button>
             </div>
 
-            {/* Warning Banner if user tries typing text/letters into clue area */}
+            {/* Warning banner when the clue limit is hit */}
             {warningMsg && (
-                <div className="clue-warning-banner pop-in">
+                <div className="gs-emoji-warning">
                     <AlertTriangle size={15} />
                     <span>{warningMsg}</span>
                 </div>
             )}
-
-            {/* Full Unicode Emoji Keyboard with Search (Search allows free typing to filter emojis) */}
-            <div className="full-emoji-picker-wrapper">
-                <EmojiPicker
-                    onEmojiClick={(emojiData) => handleAddEmoji(emojiData.emoji)}
-                    theme={Theme.LIGHT}
-                    emojiStyle={EmojiStyle.NATIVE}
-                    searchDisabled={false}
-                    searchPlaceHolder="Search all emojis (e.g. ship, ghost, ring, fire, animal)..."
-                    width="100%"
-                    height={270}
-                    lazyLoadEmojis={true}
-                    skinTonesDisabled={false}
-                    previewConfig={{
-                        showPreview: false
-                    }}
-                />
-            </div>
         </div>
     );
 }

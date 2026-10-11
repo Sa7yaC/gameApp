@@ -29,10 +29,10 @@ export default function MoviePickerModal({ choices = [], timeLeft = 15, onSelect
                                     <h3 className="movie-choice-title">{title}</h3>
                                 </div>
 
-                                <button className="select-movie-btn" type="button">
+                                {/* <button className="select-movie-btn" type="button">
                                     <span>Select</span>
                                     <CheckCircle size={16} />
-                                </button>
+                                </button> */}
                             </div>
                         );
                     })}

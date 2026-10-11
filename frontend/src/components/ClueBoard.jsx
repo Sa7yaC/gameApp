@@ -1,119 +1,115 @@
 import React from 'react';
-import { Film, Lightbulb, User, Sparkles, Calendar, Type, Globe } from 'lucide-react';
+import { CalendarDays, Clapperboard, Lightbulb, Lock } from 'lucide-react';
+import GameIcon from './GameIcon';
+
+/* Split an emoji string into safe grapheme clusters (ZWJ / skin-tone aware) */
+function splitEmojis(clue = '') {
+    try {
+        const seg = new Intl.Segmenter('en', { granularity: 'grapheme' });
+        return [...seg.segment(clue)].map((s) => s.segment).filter((s) => s.trim().length > 0);
+    } catch {
+        return [...clue].filter((s) => s.trim().length > 0);
+    }
+}
 
 export default function ClueBoard({
     actorName,
     isActor,
     movieDetails,
-    maskedTitle,
     language,
     hints,
     year,
     wordCount,
     clues = [],
-    phase
+    phase,
+    revealMovie = ''
 }) {
+    const playing = phase === 'PLAYING';
+    const reveal = phase === 'TURN_REVEAL';
+
+    const latest = clues[clues.length - 1];
+    const history = clues.slice(0, -1).reverse();
+    const latestEmojis = latest ? splitEmojis(latest) : [];
+
+    const showSecretTitle = isActor && movieDetails && playing;
+
     return (
-        <div className="clue-board-container">
-            {/* Clapperboard Header */}
-            <div className="clue-board-clapper">
-                <div className="clapper-stripes">
-                    <span className="stripe"></span>
-                    <span className="stripe"></span>
-                    <span className="stripe"></span>
-                    <span className="stripe"></span>
-                    <span className="stripe"></span>
-                </div>
-
-                <div className="clapper-meta-row">
-                    <div className="clapper-actor-info">
-                        <User size={16} />
-                        <span>Actor: <strong>{actorName || 'Selecting...'}</strong></span>
-                        {isActor && <span className="you-actor-badge">YOU</span>}
+        <div className="gs-card gs-stage">
+            {showSecretTitle && (
+                <>
+                    <h1 className="gs-stage-title">Your movie is selected!</h1>
+                    <div className="gs-secret-movie" title="Only you can see this">
+                        <Lock size={13} className="gs-secret-lock" />
+                        <span className="gs-secret-title">{movieDetails.title}</span>
+                        {movieDetails.hints && <span className="gs-secret-hint">{movieDetails.hints}</span>}
                     </div>
+                </>
+            )}
 
-                    <div className="clapper-meta-badges">
-                        {language && <span className="board-badge lang-badge">{language}</span>}
+            {!isActor && (
+                <h1 className="gs-stage-title">
+                    {reveal ? 'The movie was...' : 'The chosen movie is:'}
+                </h1>
+            )}
+
+            {/* Clue area — the movie name is revealed right here when time runs out */}
+            <div className="gs-clue-board">
+                {reveal && revealMovie ? (
+                    <div className="gs-movie-reveal">
+                        <GameIcon name="movie" size={30} alt="Movie" fallback={<Clapperboard size={22} />} />
+                        <span>{revealMovie}</span>
                     </div>
-                </div>
-            </div>
-
-            {/* Secret / Movie Info Display */}
-            <div className="title-display-stage">
-                {isActor && movieDetails ? (
-                    <div className="secret-title-box">
-                        <span className="secret-title-label">YOUR SECRET MOVIE:</span>
-                        <h1 className="secret-title-text">{movieDetails.title}</h1>
-                        {movieDetails.hints && <span className="secret-title-hint">Hint: {movieDetails.hints}</span>}
+                ) : clues.length === 0 ? (
+                    <div className="gs-clues-empty">
+                        <GameIcon name="movie" size={44} alt="Movie" fallback={<span className="gs-clues-empty-emoji">🎬</span>} />
+                        <p>
+                            {isActor
+                                ? 'Pick emojis below and drop your first clue!'
+                                : `Waiting for ${actorName || 'the actor'} to drop the first hint...`}
+                        </p>
                     </div>
                 ) : (
-                    <div className="movie-info-box">
-                        <span className="movie-info-label">GUESS THE MOVIE:</span>
-                        <div className="movie-info-pills">
-                            {year > 0 && (
-                                <div className="movie-info-pill">
-                                    <Calendar size={14} />
-                                    <span className="info-pill-label">Released</span>
-                                    <span className="info-pill-value">{year}</span>
-                                </div>
-                            )}
-                            {wordCount > 0 && (
-                                <div className="movie-info-pill">
-                                    <Type size={14} />
-                                    <span className="info-pill-label">Words</span>
-                                    <span className="info-pill-value">{wordCount}</span>
-                                </div>
-                            )}
-                            {language && (
-                                <div className="movie-info-pill">
-                                    <Globe size={14} />
-                                    <span className="info-pill-label">Language</span>
-                                    <span className="info-pill-value">{language}</span>
-                                </div>
-                            )}
+                    <>
+                        <div className="gs-clue-latest" key={clues.length}>
+                            {latestEmojis.map((em, idx) => (
+                                <span key={`lt-${idx}`} className="gs-clue-tile">{em}</span>
+                            ))}
                         </div>
-                        {hints && (
-                            <div className="movie-hints-row">
-                                <Lightbulb size={14} />
-                                <span>{hints}</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Clue Stream Area: shown to guessers, or to actor after dropping clues */}
-            {(!isActor || clues.length > 0) && (
-                <div className={`clue-stream-area ${isActor ? 'actor-mode' : ''}`}>
-                    <div className="clue-stream-header">
-                        <div className="clue-stream-title">
-                            <Sparkles size={16} className="sparkle-icon" />
-                            <span>EMOJI CLUES DROPPED</span>
-                        </div>
-                        <span className="clue-count-tag">{clues.length} {clues.length === 1 ? 'Clue' : 'Clues'}</span>
-                    </div>
-
-                    <div className="clues-display-canvas">
-                        {clues.length === 0 ? (
-                            <div className="empty-clues-placeholder">
-                                <span className="empty-emoji-icon">🎬</span>
-                                <p>
-                                    Waiting for {actorName || 'the actor'} to drop the first emoji hint...
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="clues-bubble-flow">
-                                {clues.map((clueItem, idx) => (
-                                    <div key={idx} className="clue-bubble-card pop-in">
-                                        <span className="clue-step-num">#{idx + 1}</span>
-                                        <span className="clue-emojis-content">{clueItem}</span>
+                        {history.length > 0 && (
+                            <div className="gs-clue-history">
+                                {history.map((entry, idx) => (
+                                    <div key={`hs-${idx}`} className="gs-clue-history-row">
+                                        <span className="gs-clue-hist-num">#{history.length - idx}</span>
+                                        <span className="gs-clue-hist-emos">{entry}</span>
                                     </div>
                                 ))}
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
+                    </>
+                )}
+            </div>
+
+            {/* Movie hint chips */}
+            <div className="gs-hint-chips">
+                {year > 0 && (
+                    <span className="gs-hint-chip">
+                        <GameIcon name="year" size={17} alt="Year" fallback={<CalendarDays size={15} />} />
+                        {year}
+                    </span>
+                )}
+                {language && (
+                    <span className="gs-hint-chip">
+                        <GameIcon name="category" size={17} alt="Category" fallback={<Clapperboard size={15} />} />
+                        {language}
+                    </span>
+                )}
+                {hints && (
+                    <span className="gs-hint-chip is-tip">
+                        <GameIcon name="help" size={17} alt="Hint" fallback={<Lightbulb size={15} />} />
+                        {hints}
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

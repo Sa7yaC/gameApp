@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle2, MessageSquare, AlertCircle, Sparkles } from 'lucide-react';
+import { Send, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
+import { PlayerAvatar } from './LobbyAvatars';
+import GameIcon from './GameIcon';
 
 export default function ChatSection({
     messages = [],
@@ -28,97 +30,94 @@ export default function ChatSection({
         setInputValue('');
     };
 
-    let placeholderText = "Type your guess or message...";
+    let placeholderText = 'Type your guess...';
     let isInputDisabled = false;
 
     if (isActor && phase === 'PLAYING') {
-        placeholderText = "You are the Actor! Give clues using the emoji board.";
+        placeholderText = 'You are the Actor! Give clues with emojis.';
         isInputDisabled = true;
     } else if (hasGuessed && phase === 'PLAYING') {
-        placeholderText = "You got it right! You can chat here.";
+        placeholderText = 'You got it right! Chat with friends...';
         isInputDisabled = false;
     } else if (isSpectator && phase === 'PLAYING') {
-        placeholderText = "Spectating current round. Type to chat...";
+        placeholderText = 'Spectating — type to chat...';
         isInputDisabled = false;
     }
 
     return (
-        <div className="chat-section-container">
-            <div className="chat-header">
-                <div className="chat-header-title">
-                    <MessageSquare size={16} />
-                    <span>Live Guesses & Chat</span>
-                </div>
-                <span className="live-pill">LIVE</span>
+        <div className="gs-panel gs-chat-panel">
+            <div className="gs-panel-header">
+                <h3 className="gs-panel-title">Guesses</h3>
             </div>
 
-            {/* Messages Feed: scroll only inside this element */}
-            <div className="chat-messages-feed" ref={chatFeedRef}>
-                {messages.length === 0 ? (
-                    <div className="empty-chat-state">
-                        <Sparkles size={20} />
-                        <p>No guesses yet! Be the first to guess the movie title.</p>
-                    </div>
-                ) : (
-                    messages.map((msg, index) => {
-                        if (msg.isCelebration) {
-                            return (
-                                <div key={msg.id || index} className="chat-bubble celebration-bubble">
-                                    <Sparkles size={15} />
-                                    <span>{msg.text}</span>
-                                </div>
-                            );
-                        }
+            {/* Messages feed: scrolls only inside this element */}
+            <div className="gs-chat-feed" ref={chatFeedRef}>
+                {messages
+                    .filter((msg) => !msg.isSystem) // no join/leave/round broadcasts
+                    .map((msg, index) => {
+                            if (msg.isActorWarning) {
+                                return (
+                                    <div key={msg.id || index} className="gs-chat-warning">
+                                        <AlertCircle size={13} />
+                                        <span>{msg.text}</span>
+                                    </div>
+                                );
+                            }
 
-                        if (msg.isSystem) {
-                            return (
-                                <div key={msg.id || index} className="chat-bubble system-bubble">
-                                    <AlertCircle size={14} />
-                                    <span>{msg.text}</span>
-                                </div>
-                            );
-                        }
-
-
+                            if (msg.isCelebration) {
+                                return (
+                                    <div key={msg.id || index} className="gs-chat-celebration">
+                                        <Sparkles size={14} />
+                                        <span>{msg.text}</span>
+                                    </div>
+                                );
+                            }
 
                         if (msg.isCorrectGuess) {
                             return (
-                                <div key={msg.id || index} className="chat-bubble correct-guess-bubble">
-                                    <CheckCircle2 size={15} className="correct-icon" />
-                                    <span className="sender-name">{msg.user}:</span>
-                                    <span className="masked-guess-text">****</span>
-                                    <span className="correct-tag">Guessed Right!</span>
+                                <div key={msg.id || index} className="gs-chat-correct">
+                                    <GameIcon name="ready" size={19} alt="Correct" fallback={<CheckCircle2 size={17} className="gs-correct-icon" />} />
+                                    <div>
+                                        <div className="gs-chat-correct-name">{msg.user}</div>
+                                        <div className="gs-chat-correct-text">Guessed the movie right! 🎉</div>
+                                    </div>
                                 </div>
                             );
                         }
 
                         return (
-                            <div key={msg.id || index} className={`chat-bubble standard-bubble ${msg.hasGuessed ? 'guessed-user' : ''}`}>
-                                <span className="sender-name">{msg.user}:</span>
-                                <span className="message-content">{msg.text}</span>
-                                {msg.timestamp && <span className="msg-time">{msg.timestamp}</span>}
+                            <div key={msg.id || index} className="gs-chat-msg">
+                                <PlayerAvatar name={msg.user} size={34} className="gs-chat-avatar" />
+                                <div className="gs-chat-bubble">
+                                    <div className="gs-chat-meta">
+                                        <span className="gs-chat-name">{msg.user}</span>
+                                    </div>
+                                    <p className="gs-chat-text">{msg.text}</p>
+                                </div>
                             </div>
                         );
-                    })
-                )}
+                    })}
             </div>
 
             {/* Input Form */}
-            <form onSubmit={handleSubmit} className="chat-input-bar">
+            <form className="gs-chat-input-row" onSubmit={handleSubmit}>
                 <input
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder={placeholderText}
                     disabled={isInputDisabled}
-                    className={`chat-input-field ${hasGuessed ? 'success-mode' : ''}`}
+                    className={`gs-chat-input${hasGuessed && phase === 'PLAYING' ? ' success' : ''}`}
+                    maxLength={120}
+                    autoComplete="off"
                 />
                 <button
                     type="submit"
                     disabled={isInputDisabled || !inputValue.trim()}
-                    className="chat-send-btn"
+                    className="gs-chat-send"
+                    aria-label="Send guess"
                 >
-                    <Send size={16} />
+                    <Send size={17} />
                 </button>
             </form>
         </div>

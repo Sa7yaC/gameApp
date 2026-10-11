@@ -4,6 +4,52 @@ import { pgPool, redisClient } from '../config/db.js';
 
 // In-memory fallback if DB is unavailable
 export const memoryRooms = new Map();
+export const liveRooms = new Map();
+
+export function registerLiveRoom(room) {
+    liveRooms.set(room.roomId.toLowerCase(), {
+        roomId: room.roomId,
+        hostName: room.hostName,
+        settings: room.settings,
+        status: 'active'
+    });
+
+    const existingKey = Array.from(memoryRooms.keys())
+        .find((key) => key.toLowerCase() === room.roomId.toLowerCase());
+    memoryRooms.set(existingKey || room.roomId, {
+        roomId: room.roomId,
+        hostName: room.hostName,
+        settings: room.settings,
+        status: 'active'
+    });
+}
+
+export async function closeRoom(roomId) {
+    liveRooms.delete(roomId.toLowerCase());
+
+    for (const [key, metadata] of memoryRooms.entries()) {
+        if (key.toLowerCase() === roomId.toLowerCase()) {
+            memoryRooms.set(key, { ...metadata, status: 'closed' });
+        }
+    }
+
+    try {
+        await redisClient.set(
+            `room:${roomId}:meta`,
+            JSON.stringify({ roomId, status: 'closed' }),
+            'EX',
+            86400
+        );
+    } catch (error) {
+        console.warn(`[Room] Failed to mark room ${roomId} closed in Redis:`, error.message);
+    }
+
+    try {
+        await pgPool.query('UPDATE rooms SET status = $1 WHERE room_id = $2', ['closed', roomId]);
+    } catch (error) {
+        console.warn(`[Room] Failed to mark room ${roomId} closed in PostgreSQL:`, error.message);
+    }
+}
 
 export const createRoom = async (req, res) => {
     const { userId, username, settings } = req.body;
@@ -13,7 +59,7 @@ export const createRoom = async (req, res) => {
 
     const roomSettings = {
         difficulty: settings?.difficulty || 'easy',
-        languages: settings?.languages || ['Bollywood'],
+        languages: settings?.languages || ['Indian'],
         totalRounds: settings?.totalRounds || 3,
         guessingTime: settings?.guessingTime || 90
     };
@@ -75,21 +121,33 @@ export const joinRoom = async (req, res) => {
 
     try {
         let roomData = null;
+        roomData = liveRooms.get(cleanRoomId.toLowerCase()) || null;
 
-        // Check Redis first (exact, lowercase, uppercase)
-        try {
-            let redisData = await redisClient.get(`room:${cleanRoomId}:meta`);
-            if (!redisData) {
-                redisData = await redisClient.get(`room:${cleanRoomId.toLowerCase()}:meta`);
+        if (!roomData) {
+            for (const [key, value] of memoryRooms.entries()) {
+                if (key.toLowerCase() === cleanRoomId.toLowerCase()) {
+                    roomData = value;
+                    break;
+                }
             }
-            if (!redisData) {
-                redisData = await redisClient.get(`room:${cleanRoomId.toUpperCase()}:meta`);
+        }
+
+        // Redis/PostgreSQL are fallbacks for rooms not created in this process.
+        if (!roomData) {
+            try {
+                let redisData = await redisClient.get(`room:${cleanRoomId}:meta`);
+                if (!redisData) {
+                    redisData = await redisClient.get(`room:${cleanRoomId.toLowerCase()}:meta`);
+                }
+                if (!redisData) {
+                    redisData = await redisClient.get(`room:${cleanRoomId.toUpperCase()}:meta`);
+                }
+                if (redisData) {
+                    roomData = JSON.parse(redisData);
+                }
+            } catch (e) {
+                // ignore redis error
             }
-            if (redisData) {
-                roomData = JSON.parse(redisData);
-            }
-        } catch (e) {
-            // ignore redis error
         }
 
         // Check PostgreSQL with case-insensitive fallback
@@ -113,22 +171,11 @@ export const joinRoom = async (req, res) => {
             }
         }
 
-        // Check memory fallback
         if (!roomData) {
-            if (memoryRooms.has(cleanRoomId)) {
-                roomData = memoryRooms.get(cleanRoomId);
-            } else {
-                // Check case-insensitively in memory
-                for (const [key, val] of memoryRooms.entries()) {
-                    if (key.toLowerCase() === cleanRoomId.toLowerCase()) {
-                        roomData = val;
-                        break;
-                    }
-                }
-            }
+            return res.status(404).json({ success: false, message: "Room doesn't exist. Please check the room code." });
         }
 
-        if (!roomData) {
+        if (roomData.status === 'closed') {
             return res.status(404).json({ success: false, message: "Room doesn't exist. Please check the room code." });
         }
 
@@ -155,6 +202,9 @@ export const getRoom = async (req, res) => {
     // Memory check
     for (const [key, val] of memoryRooms.entries()) {
         if (key === cleanRoomId || key.toLowerCase() === cleanRoomId.toLowerCase()) {
+            if (val.status === 'closed') {
+                return res.status(404).json({ success: false, message: 'Room not found' });
+            }
             return res.json({ success: true, room: val });
         }
     }
@@ -165,6 +215,9 @@ export const getRoom = async (req, res) => {
             [cleanRoomId]
         );
         if (pgResult.rows.length > 0) {
+            if (pgResult.rows[0].status === 'closed') {
+                return res.status(404).json({ success: false, message: 'Room not found' });
+            }
             return res.json({ success: true, room: pgResult.rows[0] });
         }
     } catch (e) {

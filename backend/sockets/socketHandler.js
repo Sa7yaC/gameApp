@@ -1,7 +1,7 @@
-import { getMovieChoices, normalizeTitle, maskTitle } from '../utils/moviesData.js';
+import { getMovieChoices, getMainTitleWordCount, matchesMovieTitle, normalizeTitle, maskTitle } from '../utils/moviesData.js';
 import { generateNordpassUsername } from '../utils/nordpassUsername.js';
 import { redisClient, pgPool } from '../config/db.js';
-import { memoryRooms } from '../controllers/room.controller.js';
+import { closeRoom, memoryRooms, liveRooms, registerLiveRoom } from '../controllers/room.controller.js';
 
 // Rooms in-memory state: Map<roomId, RoomState>
 const rooms = new Map();
@@ -29,8 +29,8 @@ function getOrCreateRoom(roomId) {
     let initHostName = '';
     let initSettings = {
         difficulty: 'easy',
-        category: 'Bollywood',
-        languages: ['Bollywood'],
+        category: 'Indian',
+        languages: ['Indian'],
         totalRounds: 3,
         hintsEnabled: true,
         guessingTime: 90
@@ -75,6 +75,19 @@ function getOrCreateRoom(roomId) {
     return newRoom;
 }
 
+function findRoom(roomId) {
+    if (!roomId) return null;
+    const cleanId = roomId.trim();
+
+    if (rooms.has(cleanId)) return rooms.get(cleanId);
+
+    for (const [key, room] of rooms.entries()) {
+        if (key.toLowerCase() === cleanId.toLowerCase()) return room;
+    }
+
+    return null;
+}
+
 /**
  * Save chat message in memory and Redis
  */
@@ -89,6 +102,34 @@ async function recordChatMessage(room, messageObj) {
     } catch (e) {
         // ignore redis error
     }
+}
+
+function clearChatHistory(room, io) {
+    room.chatHistory = [];
+    io.to(room.roomId).emit('chatHistoryCleared');
+    redisClient.del(`room:${room.roomId}:chats`).catch((error) => {
+        console.warn(`[Chat] Failed to clear Redis history for room ${room.roomId}:`, error.message);
+    });
+}
+
+function resetGameToLobby(room) {
+    clearInterval(room.timerInterval);
+    room.timerInterval = null;
+    room.gameState = 'LOBBY';
+    room.currentRound = 1;
+    room.currentActorId = null;
+    room.actorQueue = [];
+    room.currentMovie = null;
+    room.movieChoices = [];
+    room.clues = [];
+    room.timeLeft = 0;
+    room.guessedPlayers.clear();
+    room.usedMovieTitles.clear();
+    room.actedThisRound.clear();
+    room.players.forEach((player) => {
+        player.score = 0;
+        player.isSpectator = false;
+    });
 }
 
 /**
@@ -117,8 +158,15 @@ export const initSocket = (io) => {
             if (!roomId) return;
             const cleanRoomId = roomId.trim();
             const cleanUsername = (username || '').trim() || generateNordpassUsername();
+            const metadata = Array.from(memoryRooms.entries())
+                .find(([key]) => key.toLowerCase() === cleanRoomId.toLowerCase())?.[1];
+            if (metadata?.status === 'closed' && !liveRooms.has(cleanRoomId.toLowerCase())) {
+                socket.emit('roomError', { message: "Room doesn't exist. Please check the room code." });
+                return;
+            }
 
             const room = getOrCreateRoom(cleanRoomId);
+            registerLiveRoom(room);
             currentRoomId = room.roomId; // use canonical roomId
 
             socket.join(room.roomId);
@@ -182,11 +230,25 @@ export const initSocket = (io) => {
                 currentActorId: room.currentActorId,
                 actorName: room.players.get(room.currentActorId)?.username || '',
                 maskedTitle: room.currentMovie ? maskTitle(room.currentMovie.title) : '',
-                movieDetails: socket.id === room.currentActorId ? room.currentMovie : null,
-                language: room.currentMovie?.language || '',
-                year: room.currentMovie?.year || 0,
-                wordCount: room.currentMovie?.wordCount || 0,
-                hints: room.currentMovie?.hints || '',
+                movieDetails: socket.id === room.currentActorId
+                    ? (room.currentMovie
+                        ? {
+                            ...room.currentMovie,
+                            hints: room.settings.hintsEnabled === false ? '' : room.currentMovie.hints,
+                            language: room.settings.hintsEnabled === false ? '' : room.currentMovie.language,
+                            year: room.settings.hintsEnabled === false ? 0 : room.currentMovie.year,
+                            wordCount: room.settings.hintsEnabled === false
+                                ? 0
+                                : getMainTitleWordCount(room.currentMovie.title)
+                        }
+                        : null)
+                    : null,
+                language: room.settings.hintsEnabled === false ? '' : room.currentMovie?.language || '',
+                year: room.settings.hintsEnabled === false ? 0 : room.currentMovie?.year || 0,
+                wordCount: room.settings.hintsEnabled === false
+                    ? 0
+                    : getMainTitleWordCount(room.currentMovie?.title),
+                hints: room.settings.hintsEnabled === false ? '' : room.currentMovie?.hints || '',
                 clues: room.clues,
                 players: getPlayersArray(room),
                 chatHistory: room.chatHistory,
@@ -300,6 +362,8 @@ export const initSocket = (io) => {
             room.usedMovieTitles.clear();
             room.actedThisRound.clear();
 
+            clearChatHistory(room, io);
+
             // Queue players for round 1
             const playerIds = Array.from(room.players.keys()).sort(() => Math.random() - 0.5);
             room.actorQueue = playerIds;
@@ -373,10 +437,7 @@ export const initSocket = (io) => {
 
             // If game is in PLAYING phase and sender is an eligible guesser
             if (room.gameState === 'PLAYING' && !isActor && !hasAlreadyGuessed) {
-                const normalizedGuess = normalizeTitle(text);
-                const normalizedTarget = normalizeTitle(room.currentMovie?.title);
-
-                if (normalizedGuess && normalizedTarget && normalizedGuess === normalizedTarget) {
+                if (matchesMovieTitle(text, room.currentMovie?.title)) {
                     // CORRECT GUESS!
                     room.guessedPlayers.add(socket.id);
 
@@ -407,23 +468,11 @@ export const initSocket = (io) => {
                     // Broadcast masked chat message to room
                     io.to(room.roomId).emit('chatMessage', maskedMsg);
 
-                    // Broadcast celebratory announcement
-                    const announcement = {
-                        id: 'correct_' + Date.now(),
-                        user: 'Game Master',
-                        text: `🎉 ${sender.username} guessed the movie! (+${guesserPoints} pts)`,
-                        isCelebration: true,
-                        guesser: sender.username,
-                        points: guesserPoints,
-                        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    };
-                    recordChatMessage(room, announcement);
-                    io.to(room.roomId).emit('chatMessage', announcement);
                     io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
 
                     // If every non-actor player has guessed, end the turn early
                     const allGuessers = Array.from(room.players.values()).filter(
-                        p => p.id !== room.currentActorId
+                        p => p.id !== room.currentActorId && !p.isSpectator
                     );
                     const allGuessed = allGuessers.length > 0 && allGuessers.every(p => room.guessedPlayers.has(p.id));
 
@@ -469,19 +518,8 @@ export const initSocket = (io) => {
             const room = getOrCreateRoom(currentRoomId);
             if (!room || room.hostId !== socket.id) return;
 
-            clearInterval(room.timerInterval);
-            room.gameState = 'LOBBY';
-            room.currentRound = 1;
-            room.currentActorId = null;
-            room.currentMovie = null;
-            room.clues = [];
-            room.guessedPlayers.clear();
-            room.usedMovieTitles.clear();
-            room.actedThisRound.clear();
-            room.players.forEach(p => {
-                p.score = 0;
-                p.isSpectator = false;
-            });
+            resetGameToLobby(room);
+            clearChatHistory(room, io);
 
             io.to(room.roomId).emit('gameStateChanged', {
                 gameState: 'LOBBY',
@@ -494,41 +532,82 @@ export const initSocket = (io) => {
         // Disconnect handler
         socket.on('disconnect', () => {
             if (!currentRoomId) return;
-            const room = getOrCreateRoom(currentRoomId);
+            const room = findRoom(currentRoomId);
             if (!room) return;
 
             const leavingPlayer = room.players.get(socket.id);
             const username = leavingPlayer ? leavingPlayer.username : 'A player';
+            const wasHost = room.hostId === socket.id;
+            const gameWasInProgress = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
             room.players.delete(socket.id);
+            room.actorQueue = room.actorQueue.filter((playerId) => playerId !== socket.id);
+            room.guessedPlayers.delete(socket.id);
+            room.actedThisRound.delete(socket.id);
 
             console.log(`[Socket] ${username} left room ${room.roomId}`);
 
-            // If room is empty, clear timer and delete after delay
             if (room.players.size === 0) {
                 clearInterval(room.timerInterval);
-                setTimeout(() => {
-                    if (room.players.size === 0) rooms.delete(room.roomId);
-                }, 600000);
+                resetGameToLobby(room);
+                clearChatHistory(room, io);
+
+                io.to(room.roomId).emit(gameWasInProgress ? 'gameAbandoned' : 'roomClosed');
+                rooms.delete(room.roomId);
+                closeRoom(room.roomId);
                 return;
             }
 
-            // If host left, assign host to first remaining player
-            if (room.hostId === socket.id) {
-                const nextHost = room.players.values().next().value;
-                if (nextHost) {
-                    room.hostId = nextHost.id;
-                    room.hostName = nextHost.username;
-                    io.to(room.roomId).emit('hostChanged', { hostId: nextHost.id, hostName: nextHost.username });
-                }
+            if (wasHost && !gameWasInProgress) {
+                clearInterval(room.timerInterval);
+                resetGameToLobby(room);
+                clearChatHistory(room, io);
+                io.to(room.roomId).emit('roomClosed');
+                rooms.delete(room.roomId);
+                closeRoom(room.roomId);
+                return;
             }
 
-            // If current actor disconnected during turn, immediately end turn cleanly
-            if (room.currentActorId === socket.id && (room.gameState === 'CHOOSING_MOVIE' || room.gameState === 'PLAYING')) {
-                clearInterval(room.timerInterval);
-                endTurn(room, 'ACTOR_DISCONNECTED');
+            if (wasHost) {
+                const nextHost = room.players.values().next().value;
+                room.hostId = nextHost.id;
+                room.hostName = nextHost.username;
+                io.to(room.roomId).emit('hostChanged', {
+                    hostId: room.hostId,
+                    hostName: room.hostName
+                });
+            }
+
+            if (gameWasInProgress && room.players.size < 2) {
+                resetGameToLobby(room);
+                clearChatHistory(room, io);
+                io.to(room.roomId).emit('gameStateChanged', {
+                    gameState: 'LOBBY',
+                    players: getPlayersArray(room),
+                    currentRound: 1,
+                    totalRounds: room.settings.totalRounds
+                });
+                return;
             }
 
             io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
+
+            if (gameWasInProgress && room.currentActorId === socket.id) {
+                if (room.gameState === 'CHOOSING_MOVIE') {
+                    clearInterval(room.timerInterval);
+                    startTurn(room);
+                } else if (room.gameState === 'PLAYING') {
+                    endTurn(room, 'ACTOR_LEFT');
+                }
+                return;
+            }
+
+            if (gameWasInProgress && room.gameState === 'PLAYING') {
+                const guessers = Array.from(room.players.values())
+                    .filter((player) => player.id !== room.currentActorId && !player.isSpectator);
+                if (guessers.length > 0 && guessers.every((player) => room.guessedPlayers.has(player.id))) {
+                    endTurn(room, 'ALL_GUESSED');
+                }
+            }
         });
     });
 
@@ -547,6 +626,7 @@ export const initSocket = (io) => {
             } else {
                 // Advance to next round
                 room.currentRound++;
+                clearChatHistory(room, io);
                 room.actedThisRound.clear();
                 // Include any mid-round joiners in next round
                 room.players.forEach(p => { p.isSpectator = false; });
@@ -583,7 +663,9 @@ export const initSocket = (io) => {
 
         // Send the 3 options specifically to actor
         io.to(nextActorId).emit('movieChoices', {
-            choices: choices,
+            choices: room.settings.hintsEnabled === false
+                ? choices.map(({ title, name }) => ({ title, name }))
+                : choices,
             timeLeft: 15
         });
 
@@ -618,7 +700,9 @@ export const initSocket = (io) => {
 
         // Send secret movie to actor
         io.to(room.currentActorId).emit('actorSecretMovie', {
-            movie: room.currentMovie,
+            movie: room.settings.hintsEnabled === false
+                ? { ...room.currentMovie, hints: '', language: '', year: 0, wordCount: 0 }
+                : room.currentMovie,
             timeLeft: room.timeLeft
         });
 
@@ -628,10 +712,12 @@ export const initSocket = (io) => {
             currentActorId: room.currentActorId,
             actorName: actorName,
             maskedTitle: maskTitle(room.currentMovie.title),
-            language: room.currentMovie.language,
-            hints: room.currentMovie.hints,
-            year: room.currentMovie.year,
-            wordCount: room.currentMovie.wordCount || (room.currentMovie.title ? room.currentMovie.title.trim().split(/\s+/).length : 0),
+            language: room.settings.hintsEnabled === false ? '' : room.currentMovie.language,
+            hints: room.settings.hintsEnabled === false ? '' : room.currentMovie.hints,
+            year: room.settings.hintsEnabled === false ? 0 : room.currentMovie.year,
+            wordCount: room.settings.hintsEnabled === false
+                ? 0
+                : getMainTitleWordCount(room.currentMovie.title),
             timeLeft: room.timeLeft,
             totalTime: room.settings.guessingTime || 90,
             players: getPlayersArray(room)
@@ -660,6 +746,8 @@ export const initSocket = (io) => {
         let revealText = `Time's up! The movie was "${movieTitle}".`;
         if (reason === 'ALL_GUESSED') {
             revealText = `Everyone guessed it right! The movie was "${movieTitle}".`;
+        } else if (reason === 'ACTOR_LEFT') {
+            revealText = `The actor left. The movie was "${movieTitle}".`;
         }
 
         const revealMsg = {
@@ -673,7 +761,7 @@ export const initSocket = (io) => {
         io.to(room.roomId).emit('turnEnded', {
             gameState: 'TURN_REVEAL',
             movie: movieTitle,
-            hints: room.currentMovie?.hints,
+            hints: room.settings.hintsEnabled === false ? '' : room.currentMovie?.hints,
             reason: reason,
             players: getPlayersArray(room),
             revealDuration: 5

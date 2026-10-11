@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Users, Settings, Layers, Film, Lightbulb, Info, Play, Copy, Check, ChevronDown, Minus, Plus, Crown, Share2 } from 'lucide-react';
+import { Users, Settings, ListOrdered, Tags, Lightbulb, Info, Play, Copy, Check, ChevronDown, Minus, Plus, Crown, Share2 } from 'lucide-react';
 import { PlayerAvatar } from './LobbyAvatars';
 import GameIcon from './GameIcon';
 import sounds from '../utils/soundEffects';
 import '../styles/LobbyView.css';
 
-const CATEGORIES = ['Bollywood', 'Hollywood', 'Animated', 'Mixed'];
+const CATEGORIES = ['Indian', 'Hollywood', 'Animated', 'Mixed'];
 const MAX_PLAYERS = 8;
 
 export default function LobbyView({
@@ -25,9 +25,12 @@ export default function LobbyView({
 
     // Current lobby settings
     const currentRounds = settings.totalRounds || 3;
-    const currentCategory = settings.category ||
+    const configuredCategory = settings.category ||
         (Array.isArray(settings.languages) && settings.languages[0]) ||
-        'Bollywood';
+        'Indian';
+    const currentCategory = configuredCategory.toLowerCase() === 'bollywood'
+        ? 'Indian'
+        : configuredCategory;
     const hintsEnabled = settings.hintsEnabled !== undefined ? settings.hintsEnabled : true;
 
     // Player roster (falls back to just the current user until room state arrives)
@@ -211,7 +214,7 @@ export default function LobbyView({
                             <div className="lob-set-row">
                                 <div className="lob-set-label">
                                     <span className="lob-set-icon">
-                                        <GameIcon name="category" size={20} alt="Category" fallback={<Layers size={17} />} />
+                                        <ListOrdered size={18} aria-label="Number of rounds" />
                                     </span>
                                     <span className="lob-set-name">Number of Rounds</span>
                                 </div>
@@ -244,7 +247,7 @@ export default function LobbyView({
                             <div className="lob-set-row">
                                 <div className="lob-set-label">
                                     <span className="lob-set-icon">
-                                        <GameIcon name="movie" size={20} alt="Movie" fallback={<Film size={17} />} />
+                                        <Tags size={18} aria-label="Movie category" />
                                     </span>
                                     <span className="lob-set-name">Movie Category</span>
                                 </div>

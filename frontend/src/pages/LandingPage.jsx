@@ -110,7 +110,7 @@ export default function LandingPage() {
                 username: cleanUser,
                 settings: {
                     difficulty: 'easy',
-                    languages: ['Bollywood'],
+                    languages: ['Indian'],
                     totalRounds: 3,
                     guessingTime: 90
                 }

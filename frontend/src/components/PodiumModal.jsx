@@ -49,12 +49,11 @@ export default function PodiumModal({
             <div className="podium-modal-card">
                 <div className="podium-header">
                     <div className="podium-tag">
-                        <Sparkles size={18} />
-                        <span>MATCH FINISHED</span>
+
                     </div>
                     <h2>Game Champions! 🏆</h2>
                     <p className="podium-subtitle">
-                        Spectacular guessing! Here are the winners of this match.
+
                     </p>
                 </div>
 

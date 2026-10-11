@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, Clapperboard, Lightbulb, Lock } from 'lucide-react';
+import { CalendarDays, Clapperboard, Film, Hash, Lightbulb, Lock } from 'lucide-react';
 import GameIcon from './GameIcon';
 
 /* Split an emoji string into safe grapheme clusters (ZWJ / skin-tone aware) */
@@ -97,9 +97,15 @@ export default function ClueBoard({
                         {year}
                     </span>
                 )}
+                {wordCount > 0 && (
+                    <span className="gs-hint-chip">
+                        <Hash size={15} aria-label="Word count" />
+                        {wordCount} {wordCount === 1 ? 'word' : 'words'}
+                    </span>
+                )}
                 {language && (
                     <span className="gs-hint-chip">
-                        <GameIcon name="category" size={17} alt="Category" fallback={<Clapperboard size={15} />} />
+                        <Film size={15} aria-label="Category" />
                         {language}
                     </span>
                 )}

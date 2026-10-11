@@ -30,7 +30,7 @@ export default function GameRoom() {
     const [hostId, setHostId] = useState('');
     const [settings, setSettings] = useState({
         difficulty: 'easy',
-        languages: ['Bollywood'],
+        languages: ['Indian'],
         totalRounds: 3,
         guessingTime: 90
     });
@@ -126,6 +126,18 @@ export default function GameRoom() {
             setHostId(newHostId);
         });
 
+        socket.on('chatHistoryCleared', () => {
+            setChatMessages([]);
+        });
+
+        const handleRoomClosed = () => {
+            socket.disconnect();
+            navigate('/');
+        };
+        socket.on('gameAbandoned', handleRoomClosed);
+        socket.on('roomClosed', handleRoomClosed);
+        socket.on('roomError', handleRoomClosed);
+
         // Turn selecting phase
         socket.on('turnSelecting', (data) => {
             setGameState('CHOOSING_MOVIE');
@@ -217,6 +229,7 @@ export default function GameRoom() {
             setGameState(data.gameState);
             setPlayers(data.players);
             setCurrentRound(data.currentRound);
+            setChatMessages([]);
             setClues([]);
             setMovieDetails(null);
             setMaskedTitle('');
@@ -228,6 +241,10 @@ export default function GameRoom() {
             socket.off('settingsUpdated');
             socket.off('playersUpdated');
             socket.off('hostChanged');
+            socket.off('chatHistoryCleared');
+            socket.off('gameAbandoned');
+            socket.off('roomClosed');
+            socket.off('roomError');
             socket.off('turnSelecting');
             socket.off('movieChoices');
             socket.off('actorSecretMovie');
@@ -240,7 +257,7 @@ export default function GameRoom() {
             socket.off('gameOver');
             socket.off('gameStateChanged');
         };
-    }, [socket]);
+    }, [socket, navigate]);
 
     // Handle Direct Link Joiners Prompt
     const handleUsernameSubmit = (e) => {

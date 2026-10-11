@@ -28,9 +28,8 @@ pgPool.on('error', (err) => {
 });
 
 // Redis Client
-export const redisClient = new Redis({
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: parseInt(process.env.REDIS_PORT || '6380', 10),
+const redisUrl = process.env.REDIS_URL;
+const redisConnectionOptions = {
     retryStrategy: (times) => {
         if (times > 5) {
             console.warn('⚠️ Redis connection retry limit reached. Continuing with in-memory fallback.');
@@ -39,7 +38,15 @@ export const redisClient = new Redis({
         return Math.min(times * 500, 2000);
     },
     lazyConnect: true
-});
+};
+
+export const redisClient = redisUrl
+    ? new Redis(redisUrl, redisConnectionOptions)
+    : new Redis({
+        ...redisConnectionOptions,
+        host: process.env.REDIS_HOST || '127.0.0.1',
+        port: parseInt(process.env.REDIS_PORT || '6380', 10),
+    });
 
 export const initDatabases = async () => {
     // Initialize PostgreSQL Schema
@@ -67,7 +74,7 @@ export const initDatabases = async () => {
     // Initialize Redis
     try {
         await redisClient.connect();
-        console.log('✅ Redis connected successfully on port', process.env.REDIS_PORT || 6380);
+        console.log('✅ Redis connected successfully.');
     } catch (err) {
         console.warn('⚠️ Redis Connection Warning (will use in-memory fallback if needed):', err.message);
     }

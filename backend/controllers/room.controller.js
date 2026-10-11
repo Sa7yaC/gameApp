@@ -56,12 +56,15 @@ export const createRoom = async (req, res) => {
     const providedName = (username || userId || '').trim();
     const hostName = providedName || generateNordpassUsername();
     const roomId = generateRoomId();
+    const requestedGuessingTime = parseInt(settings?.guessingTime ?? 90, 10);
 
     const roomSettings = {
         difficulty: settings?.difficulty || 'easy',
         languages: settings?.languages || ['Indian'],
         totalRounds: settings?.totalRounds || 3,
-        guessingTime: settings?.guessingTime || 90
+        guessingTime: Number.isFinite(requestedGuessingTime)
+            ? Math.min(Math.max(requestedGuessingTime, 30), 300)
+            : 90
     };
 
     try {

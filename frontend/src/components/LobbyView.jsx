@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Settings, ListOrdered, Tags, Lightbulb, Info, Play, Copy, Check, ChevronDown, Minus, Plus, Crown, Share2 } from 'lucide-react';
+import { Users, Settings, ListOrdered, Tags, Lightbulb, Info, Play, Copy, Check, ChevronDown, Minus, Plus, Crown, Share2, Clock } from 'lucide-react';
 import { PlayerAvatar } from './LobbyAvatars';
 import GameIcon from './GameIcon';
 import sounds from '../utils/soundEffects';
@@ -25,6 +25,7 @@ export default function LobbyView({
 
     // Current lobby settings
     const currentRounds = settings.totalRounds || 3;
+    const currentGuessingTime = Math.min(300, Math.max(30, Number(settings.guessingTime) || 90));
     const configuredCategory = settings.category ||
         (Array.isArray(settings.languages) && settings.languages[0]) ||
         'Indian';
@@ -93,6 +94,18 @@ export default function LobbyView({
             sounds.playTick();
         }
     };
+
+    const handleGuessingTimeChange = (delta) => {
+        if (!isHost || !onUpdateSettings) return;
+        const next = Math.max(30, Math.min(300, currentGuessingTime + delta));
+        if (next !== currentGuessingTime) {
+            onUpdateSettings({ ...settings, guessingTime: next });
+            sounds.playTick();
+        }
+    };
+
+    const formatGuessingTime = (seconds) =>
+        `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
     const handleCategorySelect = (cat) => {
         if (!isHost || !onUpdateSettings) return;
@@ -237,6 +250,42 @@ export default function LobbyView({
                                         onClick={() => handleRoundsChange(1)}
                                         disabled={!isHost || currentRounds >= 6}
                                         aria-label="More rounds"
+                                    >
+                                        <Plus size={16} strokeWidth={3} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Guessing and emoji-clue timer */}
+                            <div className="lob-set-row">
+                                <div className="lob-set-label">
+                                    <span className="lob-set-icon">
+                                        <Clock size={18} aria-label="Guessing and clue time" />
+                                    </span>
+                                    <span className="lob-set-name">
+                                        Guess &amp; Clue Time
+                                        <small>Time for guessing and emoji clues (max 5 min)</small>
+                                    </span>
+                                </div>
+                                <div className="lob-control">
+                                    <div className="lob-step-group">
+                                        <button
+                                            type="button"
+                                            className="lob-step-btn"
+                                            onClick={() => handleGuessingTimeChange(-30)}
+                                            disabled={!isHost || currentGuessingTime <= 30}
+                                            aria-label="Decrease guess and clue time by 30 seconds"
+                                        >
+                                            <Minus size={16} strokeWidth={3} />
+                                        </button>
+                                        <span className="lob-step-val">{formatGuessingTime(currentGuessingTime)}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="lob-step-btn is-plus"
+                                        onClick={() => handleGuessingTimeChange(30)}
+                                        disabled={!isHost || currentGuessingTime >= 300}
+                                        aria-label="Increase guess and clue time by 30 seconds"
                                     >
                                         <Plus size={16} strokeWidth={3} />
                                     </button>

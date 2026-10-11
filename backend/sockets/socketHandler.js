@@ -266,12 +266,18 @@ export const initSocket = (io) => {
             if (!currentRoomId) return;
             const room = getOrCreateRoom(currentRoomId);
             if (!room || room.hostId !== socket.id || room.gameState !== 'LOBBY') return;
+            const requestedGuessingTime = parseInt(
+                settings.guessingTime ?? room.settings.guessingTime ?? 90,
+                10
+            );
 
             room.settings = {
                 ...room.settings,
                 ...settings,
                 totalRounds: Math.min(Math.max(parseInt(settings.totalRounds || 3, 10), 1), 6),
-                guessingTime: Math.min(Math.max(parseInt(settings.guessingTime || 90, 10), 30), 180)
+                guessingTime: Number.isFinite(requestedGuessingTime)
+                    ? Math.min(Math.max(requestedGuessingTime, 30), 300)
+                    : 90
             };
 
             io.to(room.roomId).emit('settingsUpdated', room.settings);

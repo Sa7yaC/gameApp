@@ -140,6 +140,7 @@ function getPlayersArray(room) {
         id: p.id,
         username: p.username,
         score: p.score,
+        avatarIndex: p.avatarIndex,
         isHost: p.id === room.hostId,
         isReady: p.isReady !== undefined ? p.isReady : true,
         hasGuessed: room.guessedPlayers.has(p.id),
@@ -174,11 +175,13 @@ export const initSocket = (io) => {
             // Check if player is reconnecting with same username
             let existingScore = 0;
             let existingPlayerEntry = null;
+            let existingAvatarIndex = null;
             let wasHost = false;
             for (const [sId, p] of room.players.entries()) {
                 if (p.username.toLowerCase() === cleanUsername.toLowerCase()) {
                     existingScore = p.score;
                     existingPlayerEntry = sId;
+                    existingAvatarIndex = p.avatarIndex;
                     if (p.isHost || sId === room.hostId) wasHost = true;
                     break;
                 }
@@ -205,11 +208,22 @@ export const initSocket = (io) => {
 
             // Determine if player joins mid-game
             const isMidGame = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
+            const assignedAvatarIndices = new Set(
+                Array.from(room.players.values(), (player) => player.avatarIndex)
+            );
+            const availableAvatarIndices = Array.from({ length: 15 }, (_, index) => index)
+                .filter((index) => !assignedAvatarIndices.has(index));
+            const avatarIndex = existingAvatarIndex ?? (
+                availableAvatarIndices.length > 0
+                    ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
+                    : Math.floor(Math.random() * 15)
+            );
 
             const playerObj = {
                 id: socket.id,
                 username: cleanUsername,
                 score: existingScore,
+                avatarIndex,
                 isHost: socket.id === room.hostId,
                 isReady: true,
                 isSpectator: isMidGame,
@@ -352,6 +366,7 @@ export const initSocket = (io) => {
                     id: socket.id,
                     username: room.hostName || 'Host',
                     score: 0,
+                    avatarIndex: Math.floor(Math.random() * 15),
                     isHost: true,
                     isReady: true,
                     isSpectator: false,
@@ -465,6 +480,7 @@ export const initSocket = (io) => {
                     const maskedMsg = {
                         id: 'guess_' + Date.now() + '_' + socket.id,
                         user: sender.username,
+                        avatarIndex: sender.avatarIndex,
                         text: '****',
                         isCorrectGuess: true,
                         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -509,6 +525,7 @@ export const initSocket = (io) => {
             const normalMsg = {
                 id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
                 user: sender.username,
+                avatarIndex: sender.avatarIndex,
                 text: text,
                 isSpectator: sender.isSpectator,
                 hasGuessed: hasAlreadyGuessed,

@@ -85,7 +85,11 @@ export default function PodiumModal({
                             <>
                                 <GameIcon name="host-crown" size={40} alt="Winner" className="crown-gold float-bounce" fallback={<Crown size={32} className="crown-gold float-bounce" />} />
                                 <div className="podium-avatar-bubble gold-ring">
-                                    <PlayerAvatar name={firstPlace.username} size={30} />
+                                    <PlayerAvatar
+                                        name={firstPlace.username}
+                                        avatarIndex={firstPlace.avatarIndex}
+                                        size={30}
+                                    />
                                 </div>
                                 <span className="podium-player-name highlight-winner">{firstPlace.username}</span>
                                 <span className="podium-score winner-score">{firstPlace.score} pts</span>

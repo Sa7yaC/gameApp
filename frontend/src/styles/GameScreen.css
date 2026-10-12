@@ -71,12 +71,8 @@
   white-space: nowrap;
 }
 
-.gs-chip-flag {
-  color: #6c4ee0;
-}
-
-.gs-chip-users {
-  color: #6474e4;
+.gs-topbar-chips .gs-chip .gi {
+  flex: none;
 }
 
 .gs-turn-chip {
@@ -513,6 +509,15 @@
   flex: none;
 }
 
+.gs-hint-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  object-position: center;
+  flex: none;
+}
+
 .gs-hint-chip.is-tip {
   background: #f4f2ff;
 }
@@ -524,6 +529,12 @@
   align-items: center;
   gap: 6px;
   padding: 2px 0;
+}
+
+.gs-clues-empty-image {
+  width: 56px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .gs-clues-empty-emoji {
@@ -908,9 +919,9 @@
   width: 172px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   height: 38px;
-  padding: 0 12px;
+  padding: 0 8px;
   border: 1.5px solid #e3e9f6;
   border-radius: 11px;
   background: #ffffff;
@@ -921,6 +932,13 @@
 .gs-emoji-search:focus-within {
   border-color: #8b7bf6;
   box-shadow: 0 0 0 3px rgba(136, 128, 246, 0.18);
+}
+
+.gs-emoji-search > .gi {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-left: 3px;
 }
 
 .gs-emoji-search input {

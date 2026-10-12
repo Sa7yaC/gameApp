@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, Clapperboard, Film, Hash, Lightbulb, Lock } from 'lucide-react';
+import { Clapperboard, Film, Hash, Lightbulb, Lock } from 'lucide-react';
 import GameIcon from './GameIcon';
 
 /* Split an emoji string into safe grapheme clusters (ZWJ / skin-tone aware) */
@@ -61,7 +61,12 @@ export default function ClueBoard({
                     </div>
                 ) : clues.length === 0 ? (
                     <div className="gs-clues-empty">
-                        <GameIcon name="movie" size={44} alt="Movie" fallback={<span className="gs-clues-empty-emoji">🎬</span>} />
+                        <img
+                            src="/icons/clue-first-placeholder.png"
+                            alt=""
+                            className="gs-clues-empty-image"
+                            draggable={false}
+                        />
                         <p>
                             {isActor
                                 ? 'Pick emojis below and drop your first clue!'
@@ -93,19 +98,19 @@ export default function ClueBoard({
             <div className="gs-hint-chips">
                 {year > 0 && (
                     <span className="gs-hint-chip">
-                        <GameIcon name="year" size={17} alt="Year" fallback={<CalendarDays size={15} />} />
+                        <img src="/icons/hint-year.png" alt="" className="gs-hint-icon" draggable={false} />
                         {year}
                     </span>
                 )}
                 {wordCount > 0 && (
                     <span className="gs-hint-chip">
-                        <Hash size={15} aria-label="Word count" />
+                        <img src="/icons/hint-words.png" alt="" className="gs-hint-icon" draggable={false} />
                         {wordCount} {wordCount === 1 ? 'word' : 'words'}
                     </span>
                 )}
                 {language && (
                     <span className="gs-hint-chip">
-                        <Film size={15} aria-label="Category" />
+                        <img src="/icons/hint-category.png" alt="" className="gs-hint-icon" draggable={false} />
                         {language}
                     </span>
                 )}

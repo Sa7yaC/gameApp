@@ -25,7 +25,12 @@ export default function ScoreboardSidebar({ players = [], currentActorId }) {
                             key={player.id}
                             className={`gs-player-row${isActor ? ' is-turn' : ''}${player.hasGuessed ? ' has-guessed' : ''}`}
                         >
-                            <PlayerAvatar name={player.username} size={40} className="gs-player-avatar" />
+                            <PlayerAvatar
+                                name={player.username}
+                                avatarIndex={player.avatarIndex}
+                                size={40}
+                                className="gs-player-avatar"
+                            />
 
                             <div className="gs-player-meta">
                                 <div className="gs-player-name-line">

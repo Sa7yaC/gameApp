@@ -9,8 +9,8 @@ import ScoreboardSidebar from '../components/ScoreboardSidebar';
 import MoviePickerModal from '../components/MoviePickerModal';
 import PodiumModal from '../components/PodiumModal';
 import sounds from '../utils/soundEffects';
-import { generateNordpassUsername } from '../utils/nordpassUsername';
-import { Volume2, VolumeX, LogOut, Clock, Dices, Flag, Users } from 'lucide-react';
+import { generateNordpassUsername, INDIAN_USERNAMES } from '../utils/nordpassUsername';
+import { Volume2, VolumeX, LogOut, Clock, Dices } from 'lucide-react';
 import { PlayerAvatar } from '../components/LobbyAvatars';
 import GameIcon from '../components/GameIcon';
 import '../styles/GameRoom.css';
@@ -70,6 +70,7 @@ export default function GameRoom() {
     );
     const hasGuessed = currentPlayerData?.hasGuessed || false;
     const isSpectator = currentPlayerData?.isSpectator || false;
+    const currentActor = players.find((player) => player.id === currentActorId);
 
     // Connect and setup socket listeners with auto-rejoin on connect/reconnect
     useEffect(() => {
@@ -347,8 +348,14 @@ export default function GameRoom() {
                                 onChange={(e) => setUsername(e.target.value)}
                                 placeholder="e.g. CinemaMaster"
                                 className="styled-input username-input"
+                                list="indian-username-suggestions"
                                 autoFocus
                             />
+                            <datalist id="indian-username-suggestions">
+                                {INDIAN_USERNAMES.map((suggestion) => (
+                                    <option key={suggestion} value={suggestion} />
+                                ))}
+                            </datalist>
                             <button
                                 type="button"
                                 onClick={handleRollPromptUsername}
@@ -378,20 +385,25 @@ export default function GameRoom() {
 
                     <div className="gs-topbar-chips">
                         <div className="gs-chip">
-                            <Flag size={14} className="gs-chip-flag" />
+                            <GameIcon name="round-flag" size={20} alt="" />
                             <span>Round {currentRound} / {totalRounds}</span>
                         </div>
 
                         {turnTotal > 0 && (
                             <div className="gs-chip">
-                                <Users size={14} className="gs-chip-users" />
+                                <GameIcon name="turn-players" size={20} alt="" />
                                 <span>Turn {turnNumber > 0 ? turnNumber : 1} / {turnTotal}</span>
                             </div>
                         )}
 
                         {actorName && (
                             <div className="gs-turn-chip">
-                                <PlayerAvatar name={actorName} size={26} className="gs-turn-avatar" />
+                                <PlayerAvatar
+                                    name={actorName}
+                                    avatarIndex={currentActor?.avatarIndex}
+                                    size={26}
+                                    className="gs-turn-avatar"
+                                />
                                 <span>{actorName}'s Turn</span>
                             </div>
                         )}

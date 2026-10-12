@@ -87,7 +87,12 @@ export default function ChatSection({
 
                         return (
                             <div key={msg.id || index} className="gs-chat-msg">
-                                <PlayerAvatar name={msg.user} size={34} className="gs-chat-avatar" />
+                                <PlayerAvatar
+                                    name={msg.user}
+                                    avatarIndex={msg.avatarIndex}
+                                    size={34}
+                                    className="gs-chat-avatar"
+                                />
                                 <div className="gs-chat-bubble">
                                     <div className="gs-chat-meta">
                                         <span className="gs-chat-name">{msg.user}</span>

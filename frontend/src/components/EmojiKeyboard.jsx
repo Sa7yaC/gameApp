@@ -244,7 +244,7 @@ export default function EmojiKeyboard({ onDropClue, disabled }) {
                 </button>
 
                 <div className="gs-emoji-search">
-                    <GameIcon name="cat-search" size={14} alt="" fallback={<Search size={14} />} />
+                    <GameIcon name="cat-search" size={18} alt="" fallback={<Search size={16} />} />
                     <input
                         type="text"
                         value={search}

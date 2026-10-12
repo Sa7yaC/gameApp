@@ -194,6 +194,7 @@ export default function LobbyView({
                                     >
                                         <PlayerAvatar
                                             name={player.username}
+                                            avatarIndex={player.avatarIndex}
                                             size={34}
                                             className="lob-player-avatar"
                                         />
@@ -218,7 +219,7 @@ export default function LobbyView({
                         <div className="lob-card lob-settings-card">
                             <h2 className="lob-card-title has-badge">
                                 <span className="lob-title-badge">
-                                    <GameIcon name="settings" size={22} alt="Settings" fallback={<Settings size={20} />} />
+                                    <GameIcon name="settings-main" size={36} alt="Settings" fallback={<Settings size={20} />} />
                                 </span>
                                 Game Settings
                             </h2>
@@ -226,8 +227,8 @@ export default function LobbyView({
                             {/* Number of Rounds */}
                             <div className="lob-set-row">
                                 <div className="lob-set-label">
-                                    <span className="lob-set-icon">
-                                        <ListOrdered size={18} aria-label="Number of rounds" />
+                                    <span className="lob-set-icon has-art-icon">
+                                        <GameIcon name="settings-rounds" size={42} alt="Number of rounds" fallback={<ListOrdered size={18} />} />
                                     </span>
                                     <span className="lob-set-name">Number of Rounds</span>
                                 </div>
@@ -240,7 +241,7 @@ export default function LobbyView({
                                             disabled={!isHost || currentRounds <= 1}
                                             aria-label="Fewer rounds"
                                         >
-                                            <Minus size={16} strokeWidth={3} />
+                                            <GameIcon name="control-minus" size={30} alt="" fallback={<Minus size={16} strokeWidth={3} />} />
                                         </button>
                                         <span className="lob-step-val">{currentRounds}</span>
                                     </div>
@@ -251,7 +252,7 @@ export default function LobbyView({
                                         disabled={!isHost || currentRounds >= 6}
                                         aria-label="More rounds"
                                     >
-                                        <Plus size={16} strokeWidth={3} />
+                                        <GameIcon name="control-plus" size={30} alt="" fallback={<Plus size={16} strokeWidth={3} />} />
                                     </button>
                                 </div>
                             </div>
@@ -259,8 +260,8 @@ export default function LobbyView({
                             {/* Guessing and emoji-clue timer */}
                             <div className="lob-set-row">
                                 <div className="lob-set-label">
-                                    <span className="lob-set-icon">
-                                        <Clock size={18} aria-label="Guessing and clue time" />
+                                    <span className="lob-set-icon has-art-icon">
+                                        <GameIcon name="settings-timer" size={42} alt="Guessing and clue time" fallback={<Clock size={18} />} />
                                     </span>
                                     <span className="lob-set-name">
                                         Guess &amp; Clue Time
@@ -276,7 +277,7 @@ export default function LobbyView({
                                             disabled={!isHost || currentGuessingTime <= 30}
                                             aria-label="Decrease guess and clue time by 30 seconds"
                                         >
-                                            <Minus size={16} strokeWidth={3} />
+                                            <GameIcon name="control-minus" size={30} alt="" fallback={<Minus size={16} strokeWidth={3} />} />
                                         </button>
                                         <span className="lob-step-val">{formatGuessingTime(currentGuessingTime)}</span>
                                     </div>
@@ -287,7 +288,7 @@ export default function LobbyView({
                                         disabled={!isHost || currentGuessingTime >= 300}
                                         aria-label="Increase guess and clue time by 30 seconds"
                                     >
-                                        <Plus size={16} strokeWidth={3} />
+                                        <GameIcon name="control-plus" size={30} alt="" fallback={<Plus size={16} strokeWidth={3} />} />
                                     </button>
                                 </div>
                             </div>
@@ -295,8 +296,8 @@ export default function LobbyView({
                             {/* Movie Category */}
                             <div className="lob-set-row">
                                 <div className="lob-set-label">
-                                    <span className="lob-set-icon">
-                                        <Tags size={18} aria-label="Movie category" />
+                                    <span className="lob-set-icon has-art-icon">
+                                        <GameIcon name="movie-category-setting" size={42} alt="Movie category" fallback={<Tags size={18} />} />
                                     </span>
                                     <span className="lob-set-name">Movie Category</span>
                                 </div>
@@ -309,7 +310,7 @@ export default function LobbyView({
                                         title={isHost ? 'Choose a category' : 'Host managed'}
                                     >
                                         <span>{currentCategory}</span>
-                                        <ChevronDown size={16} className={`lob-cat-caret${categoryOpen ? ' is-open' : ''}`} />
+                                        <GameIcon name="control-dropdown" size={34} alt="" className={`lob-cat-caret${categoryOpen ? ' is-open' : ''}`} fallback={<ChevronDown size={16} />} />
                                     </button>
                                     {categoryOpen && (
                                         <div className="lob-cat-menu">
@@ -332,7 +333,9 @@ export default function LobbyView({
                             {/* Hints */}
                             <div className="lob-set-row is-hints">
                                 <div className="lob-set-label">
-                                    <span className="lob-set-icon"><Lightbulb size={17} /></span>
+                                    <span className="lob-set-icon has-art-icon">
+                                        <GameIcon name="settings-hints" size={42} alt="Hints" fallback={<Lightbulb size={17} />} />
+                                    </span>
                                     <span className="lob-set-name">
                                         Hints
                                         <small>Show movie info (year, word count, etc.)</small>
@@ -346,7 +349,12 @@ export default function LobbyView({
                                     aria-pressed={hintsEnabled}
                                     aria-label="Toggle hints"
                                 >
-                                    <span className="lob-toggle-thumb" />
+                                    <img
+                                        src={hintsEnabled ? '/icons/toggle-on.png' : '/icons/toggle-off.png'}
+                                        alt={hintsEnabled ? 'On' : 'Off'}
+                                        className="lob-toggle-image"
+                                        draggable={false}
+                                    />
                                 </button>
                             </div>
 

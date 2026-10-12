@@ -23,7 +23,26 @@ export const ICON_NAMES = [
     'trophy',        // gold winner trophy
     'year',          // calendar
     'category',      // clapperboard
-    'info',          // blue info
+    'settings-rounds',
+    'settings-timer',
+    'settings-category',
+    'settings-hints',
+    'settings-main',
+    'control-minus',
+    'control-plus',
+    'control-dropdown',
+    'category-indian',
+    'category-hollywood',
+    'category-animated',
+    'category-mixed',
+    'movie-category-setting',
+    'clue-first-placeholder',
+    'hint-year',
+    'hint-words',
+    'hint-category',
+    'round-flag',
+    'turn-players',
+    'info',           // blue info
     'settings',      // purple gear
     'help',          // question mark
     'home',          // house

@@ -160,6 +160,7 @@
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   font-size: 19px;
+  line-height: 1.2;
   color: #1b2559;
   margin-bottom: 12px;
 }
@@ -172,14 +173,13 @@
 
 .lob-title-badge {
   flex: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: #edebfe;
+  width: 36px;
+  height: 36px;
   color: #6c4ee0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transform: translateY(-4px);
 }
 
 /* ---------------- game icon images ---------------- */
@@ -380,6 +380,17 @@ button.lob-ready-pill:hover {
   justify-content: center;
 }
 
+.lob-set-icon.has-art-icon {
+  width: 42px;
+  height: 42px;
+  background: transparent;
+}
+
+.lob-set-icon.has-art-icon .gi {
+  width: 42px;
+  height: 42px;
+}
+
 .lob-set-name {
   display: flex;
   flex-direction: column;
@@ -564,41 +575,30 @@ button.lob-ready-pill:hover {
 
 /* hints toggle */
 .lob-toggle {
-  position: relative;
   flex: none;
-  width: 48px;
-  height: 28px;
-  border-radius: 999px;
+  width: 84px;
+  height: 48px;
+  padding: 0;
   border: none;
-  background: #e2e6f2;
+  background: transparent;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
-.lob-toggle.is-on {
-  background: #7c5cfa;
-  box-shadow: 0 4px 12px rgba(124, 92, 250, 0.4);
+.lob-toggle:hover:not(:disabled) {
+  transform: scale(1.04);
 }
 
-.lob-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 5px rgba(30, 38, 90, 0.25);
-  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.lob-toggle.is-on .lob-toggle-thumb {
-  transform: translateX(20px);
+.lob-toggle-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .lob-toggle:disabled {
   cursor: not-allowed;
-  opacity: 0.85;
+  opacity: 0.72;
 }
 
 /* info box */
@@ -889,7 +889,6 @@ button.lob-ready-pill:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .lob-dots span,
-  .lob-toggle-thumb,
   .lob-cat-caret,
   .lob-copied-bubble,
   .lob-cat-menu {

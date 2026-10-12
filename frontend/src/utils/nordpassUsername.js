@@ -1,30 +1,100 @@
-// NordPass-Style Random Username Generator
-
-const ADJECTIVES = [
-    'Cosmic', 'Neon', 'Shadow', 'Velvet', 'Cyber', 'Silver', 'Golden', 'Astral',
-    'Blaze', 'Mystic', 'Frost', 'Pixel', 'Solar', 'Echo', 'Thunder', 'Turbo',
-    'Lucky', 'Zenith', 'Starlight', 'Quantum', 'Vortex', 'Crimson', 'Phantom',
-    'Apex', 'Nova', 'Retro', 'Alpha', 'Brave', 'Epic', 'Hyper', 'Swift', 'Silent',
-    'Iron', 'Radiant', 'Vivid', 'Electric', 'Dynamic', 'Infinite', 'Galactic', 'Fierce'
+export const INDIAN_USERNAMES = [
+    'CircuitBhai',
+    'Virus',
+    'Mogambo',
+    'CrimeMasterGogo',
+    'Gabbar',
+    'ChulbulPandey',
+    'Khiladi786',
+    'NawabSahab',
+    'BadeMiyan',
+    'ChoteMiyan',
+    'KachraSeth',
+    'LuckySingh',
+    'Khalnayak',
+    'Shakaal',
+    'RDXBhai',
+    'MajnuBhai',
+    'UdayShetty',
+    'BalluBalram',
+    'LangdaTyagi',
+    'KalluMama',
+    'Daya',
+    'ACPPradyuman',
+    'BhindiMaster',
+    'GoliBeta',
+    'TatiyaBicchu',
+    'Jolly',
+    'ArshadPappu',
+    'MunnaBhaiya',
+    'GudduBhaiya',
+    'KaleenBhaiya',
+    'Silencer',
+    'Rancho',
+    'TapuKePapa',
+    'SoormaBhopali',
+    'TsunamiSingh',
+    'PuppyBhai',
+    'Choocha',
+    'VasooliBhai',
+    'Bandya',
+    'RituMartandDhamdhere',
+    'ChhotePandit',
+    'DeviPrasad',
+    'TonyStark',
+    'PeterParker',
+    'BruceWayne',
+    'ClarkKent',
+    'NatashaRomanoff',
+    'WandaMaximoff',
+    'LokiLaufeyson',
+    'PeterQuill',
+    'HarryPotter',
+    'HermioneGranger',
+    'RonWeasley',
+    'DracoMalfoy',
+    'AlbusDumbledore',
+    'SeverusSnape',
+    'JackSparrow',
+    'JohnWick',
+    'JamesBond',
+    'IndianaJones',
+    'DominicToretto',
+    'EthanHunt',
+    'RockyBalboa',
+    'KevinMcCallister',
+    'AceVentura',
+    'AustinPowers',
+    'DerekZoolander',
+    'BoratSagdiyev',
+    'MichaelCorleone',
+    'VitoCorleone',
+    'TonyMontana',
+    'VincentVega',
+    'TylerDurden',
+    'PatrickBateman',
+    'FreddyKrueger',
+    'JasonVoorhees',
+    'MichaelMyers',
+    'HannibalLecter',
+    'WillyWonka',
+    'EdwardScissorhands',
+    'MartyMcFly',
+    'Beetlejuice',
+    'PaddingtonBear',
+    'JackDawson',
+    'RoseDeWitt',
+    'ChristianGrey',
+    'SherlockHolmes',
+    'LegolasGreenleaf',
+    'AragornElessar',
+    'FrodoBaggins',
+    'GandalfGrey',
+    'KatnissEverdeen'
 ];
 
-const NOUNS = [
-    'Falcon', 'Runner', 'Tiger', 'Voyager', 'Wolf', 'Knight', 'Drifter', 'Fox',
-    'Owl', 'Dragon', 'Ninja', 'Hawk', 'Viper', 'Otter', 'Raven', 'Wizard',
-    'Beast', 'Specter', 'Phoenix', 'Samurai', 'Ranger', 'Panda', 'Cobra', 'Nomad',
-    'Titan', 'Seeker', 'Cinephile', 'Clapper', 'Director', 'Star', 'Hunter', 'Captain'
-];
-
-/**
- * Generate a catchy, modern NordPass-style username
- * e.g., "CosmicFalcon42", "NeonDrifter", "ShadowKnight77"
- */
 export function generateNordpassUsername() {
-    const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-    const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-    const includeNumber = Math.random() > 0.4;
-    const num = includeNumber ? Math.floor(Math.random() * 90 + 10) : '';
-    return `${adj}${noun}${num}`;
+    return INDIAN_USERNAMES[Math.floor(Math.random() * INDIAN_USERNAMES.length)];
 }
 
 export default generateNordpassUsername;

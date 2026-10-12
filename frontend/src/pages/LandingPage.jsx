@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowRight, Copy, RefreshCw } from 'lucide-react';
 import GameIcon from '../components/GameIcon';
 import sounds from '../utils/soundEffects';
-import { generateNordpassUsername, INDIAN_USERNAMES } from '../utils/nordpassUsername';
+import { generateNordpassUsername } from '../utils/nordpassUsername';
 import BACKEND_URL from '../config/backend';
 
 /* 3D-style icon: two characters + plus badge (Create Room) */
@@ -230,15 +230,9 @@ export default function LandingPage() {
                                     onChange={(e) => setUsername(e.target.value)}
                                     placeholder="Enter your name"
                                     className="lp-cu-value"
-                                    list="indian-username-suggestions"
                                     autoComplete="off"
                                     spellCheck={false}
                                 />
-                                <datalist id="indian-username-suggestions">
-                                    {INDIAN_USERNAMES.map((suggestion) => (
-                                        <option key={suggestion} value={suggestion} />
-                                    ))}
-                                </datalist>
                             </div>
                             <button
                                 type="button"

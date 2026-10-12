@@ -9,7 +9,7 @@ import ScoreboardSidebar from '../components/ScoreboardSidebar';
 import MoviePickerModal from '../components/MoviePickerModal';
 import PodiumModal from '../components/PodiumModal';
 import sounds from '../utils/soundEffects';
-import { generateNordpassUsername, INDIAN_USERNAMES } from '../utils/nordpassUsername';
+import { generateNordpassUsername } from '../utils/nordpassUsername';
 import { Volume2, VolumeX, LogOut, Clock, Dices } from 'lucide-react';
 import { PlayerAvatar } from '../components/LobbyAvatars';
 import GameIcon from '../components/GameIcon';
@@ -348,14 +348,8 @@ export default function GameRoom() {
                                 onChange={(e) => setUsername(e.target.value)}
                                 placeholder="e.g. CinemaMaster"
                                 className="styled-input username-input"
-                                list="indian-username-suggestions"
                                 autoFocus
                             />
-                            <datalist id="indian-username-suggestions">
-                                {INDIAN_USERNAMES.map((suggestion) => (
-                                    <option key={suggestion} value={suggestion} />
-                                ))}
-                            </datalist>
                             <button
                                 type="button"
                                 onClick={handleRollPromptUsername}

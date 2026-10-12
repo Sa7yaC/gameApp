@@ -208,6 +208,20 @@ export const initSocket = (io) => {
 
             // Determine if player joins mid-game
             const isMidGame = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
+            if (existingPlayerEntry && isMidGame) {
+                room.actorQueue = room.actorQueue.map((playerId) =>
+                    playerId === existingPlayerEntry ? socket.id : playerId
+                );
+                if (room.actedThisRound.delete(existingPlayerEntry)) {
+                    room.actedThisRound.add(socket.id);
+                }
+                if (room.guessedPlayers.delete(existingPlayerEntry)) {
+                    room.guessedPlayers.add(socket.id);
+                }
+                if (room.currentActorId === existingPlayerEntry) {
+                    room.currentActorId = socket.id;
+                }
+            }
             const assignedAvatarIndices = new Set(
                 Array.from(room.players.values(), (player) => player.avatarIndex)
             );
@@ -226,7 +240,7 @@ export const initSocket = (io) => {
                 avatarIndex,
                 isHost: socket.id === room.hostId,
                 isReady: true,
-                isSpectator: isMidGame,
+                isSpectator: false,
                 avatarSeed: cleanUsername
             };
             room.players.set(socket.id, playerObj);
@@ -269,6 +283,15 @@ export const initSocket = (io) => {
                 isSpectator: playerObj.isSpectator,
                 assignedUsername: cleanUsername
             });
+
+            if (room.gameState === 'CHOOSING_MOVIE' && room.currentActorId === socket.id) {
+                socket.emit('movieChoices', {
+                    choices: room.settings.hintsEnabled === false
+                        ? room.movieChoices.map(({ title, name }) => ({ title, name }))
+                        : room.movieChoices,
+                    timeLeft: room.timeLeft
+                });
+            }
 
             io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
 

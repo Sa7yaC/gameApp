@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Award, Medal, Crown, RotateCcw, Home, Sparkles } from 'lucide-react';
-import GameIcon from './GameIcon';
+import { Crown } from 'lucide-react';
 import { PlayerAvatar } from './LobbyAvatars';
 import sounds from '../utils/soundEffects';
 
@@ -10,7 +9,7 @@ export default function PodiumModal({
     allPlayers = [],
     isHost,
     onPlayAgain,
-    onReturnHome
+    onExitGame
 }) {
     useEffect(() => {
         sounds.playWin();
@@ -40,123 +39,80 @@ export default function PodiumModal({
         frame();
     }, []);
 
-    const firstPlace = podium[0];
-    const secondPlace = podium[1];
-    const thirdPlace = podium[2];
+    const rankedPlayers = allPlayers.length > 0 ? allPlayers : podium;
+    const winner = podium[0] || rankedPlayers[0];
 
     return (
         <div className="podium-modal-overlay">
             <div className="podium-modal-card">
                 <div className="podium-header">
-                    <div className="podium-tag">
-
-                    </div>
-                    <h2>Game Champions! 🏆</h2>
-                    <p className="podium-subtitle">
-
-                    </p>
+                    <img
+                        src="/icons/podium-game-over.png"
+                        alt="Game Over"
+                        className="podium-game-over-banner"
+                        draggable={false}
+                    />
+                    <p className="podium-subtitle">What a game!</p>
                 </div>
 
-                {/* 3D-styled Podium Stand */}
-                <div className="podium-stand-row">
-                    {/* 2nd Place */}
-                    <div className="podium-column second-place">
-                        {secondPlace ? (
-                            <>
-                                <div className="podium-avatar-bubble silver-ring">
-                                    <Medal size={24} className="medal-silver" />
-                                </div>
-                                <span className="podium-player-name">{secondPlace.username}</span>
-                                <span className="podium-score">{secondPlace.score} pts</span>
-                                <div className="podium-pedestal silver-pedestal">
-                                    <span className="rank-number">2</span>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="podium-pedestal silver-pedestal empty">
-                                <span className="rank-number">2</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 1st Place */}
-                    <div className="podium-column first-place">
-                        {firstPlace ? (
-                            <>
-                                <GameIcon name="host-crown" size={40} alt="Winner" className="crown-gold float-bounce" fallback={<Crown size={32} className="crown-gold float-bounce" />} />
-                                <div className="podium-avatar-bubble gold-ring">
+                <section className="podium-results">
+                    {winner && (
+                        <div className="podium-winner">
+                            <div className="podium-winner-avatar">
+                                <Crown className="podium-winner-crown float-bounce" size={46} fill="currentColor" />
+                                <div className="podium-avatar-bubble">
                                     <PlayerAvatar
-                                        name={firstPlace.username}
-                                        avatarIndex={firstPlace.avatarIndex}
-                                        size={30}
+                                        name={winner.username}
+                                        avatarIndex={winner.avatarIndex}
+                                        size={84}
                                     />
                                 </div>
-                                <span className="podium-player-name highlight-winner">{firstPlace.username}</span>
-                                <span className="podium-score winner-score">{firstPlace.score} pts</span>
-                                <div className="podium-pedestal gold-pedestal">
-                                    <span className="rank-number">1</span>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="podium-pedestal gold-pedestal empty">
-                                <span className="rank-number">1</span>
                             </div>
-                        )}
-                    </div>
-
-                    {/* 3rd Place */}
-                    <div className="podium-column third-place">
-                        {thirdPlace ? (
-                            <>
-                                <div className="podium-avatar-bubble bronze-ring">
-                                    <Award size={24} className="medal-bronze" />
-                                </div>
-                                <span className="podium-player-name">{thirdPlace.username}</span>
-                                <span className="podium-score">{thirdPlace.score} pts</span>
-                                <div className="podium-pedestal bronze-pedestal">
-                                    <span className="rank-number">3</span>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="podium-pedestal bronze-pedestal empty">
-                                <span className="rank-number">3</span>
+                            <h3 className="podium-winner-name">{winner.username}</h3>
+                            <div className="podium-winner-score">
+                                <strong>{winner.score}</strong>
+                                <span>points</span>
                             </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Remaining Players Leaderboard */}
-                {allPlayers.length > 3 && (
-                    <div className="podium-leaderboard-sublist">
-                        <h4>Full Match Rankings</h4>
-                        <div className="sublist-scroll">
-                            {allPlayers.slice(3).map((player, idx) => (
-                                <div key={player.id || idx} className="sublist-row">
-                                    <span className="sublist-rank">#{idx + 4}</span>
-                                    <span className="sublist-name">{player.username}</span>
-                                    <span className="sublist-pts">{player.score} pts</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Footer Controls */}
-                <div className="podium-actions-footer">
-                    {isHost ? (
-                        <button onClick={onPlayAgain} className="podium-btn play-again-btn">
-                            <RotateCcw size={18} />
-                            <span>Play Again (New Match)</span>
-                        </button>
-                    ) : (
-                        <div className="waiting-host-box">
-                            <span>Waiting for host to restart match...</span>
                         </div>
                     )}
 
-                    <button onClick={onReturnHome} className="podium-btn home-btn">
-                        <Home size={18} />
-                        <span>Leave to Lobby</span>
+                    {rankedPlayers.length > 0 && (
+                        <div className="podium-rankings" aria-label="Final rankings">
+                            {rankedPlayers.map((player, idx) => (
+                                <div
+                                    key={player.id || `${player.username}-${idx}`}
+                                    className={`podium-ranking-row${idx === 0 ? ' is-winner' : ''}`}
+                                >
+                                    <span className={`podium-rank-number rank-${idx + 1}`}>{idx + 1}</span>
+                                    <PlayerAvatar
+                                        name={player.username}
+                                        avatarIndex={player.avatarIndex}
+                                        size={38}
+                                        className="podium-ranking-avatar"
+                                    />
+                                    <span className="podium-ranking-name">{player.username}</span>
+                                    {idx === 0 && <Crown size={17} className="podium-ranking-crown" fill="currentColor" />}
+                                    <strong className="podium-ranking-score">{player.score}</strong>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                <div className="podium-actions-footer">
+                    <button
+                        onClick={onPlayAgain}
+                        className="podium-btn play-again-btn"
+                        disabled={!isHost}
+                        title={isHost ? 'Return everyone to the lobby' : 'Only the host can restart the match'}
+                    >
+                        <img src="/icons/podium-play-again.png" alt="" className="podium-action-icon" draggable={false} />
+                        <span>Play Again</span>
+                    </button>
+
+                    <button onClick={onExitGame} className="podium-btn exit-game-btn">
+                        <img src="/icons/podium-exit-game.png" alt="" className="podium-action-icon" draggable={false} />
+                        <span>Exit Game</span>
                     </button>
                 </div>
             </div>

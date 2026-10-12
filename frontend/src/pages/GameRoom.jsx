@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { SocketContext } from '../context/SocketContext';
 import LobbyView from '../components/LobbyView';
@@ -25,6 +25,9 @@ export default function GameRoom() {
     const [hasJoinedSocket, setHasJoinedSocket] = useState(false);
     const [promptUser, setPromptUser] = useState(false);
     const [isMuted, setIsMuted] = useState(sounds.isMuted);
+    const isBrowserReload = useRef(
+        window.performance?.getEntriesByType('navigation')[0]?.type === 'reload'
+    );
 
     // Game Room State
     const [hostId, setHostId] = useState('');
@@ -72,9 +75,16 @@ export default function GameRoom() {
     const isSpectator = currentPlayerData?.isSpectator || false;
     const currentActor = players.find((player) => player.id === currentActorId);
 
+    useEffect(() => {
+        if (!isBrowserReload.current) return;
+
+        socket.disconnect();
+        navigate('/', { replace: true });
+    }, [navigate, socket]);
+
     // Connect and setup socket listeners with auto-rejoin on connect/reconnect
     useEffect(() => {
-        if (!username) return;
+        if (!username || isBrowserReload.current) return;
 
         const handleJoin = () => {
             socket.emit('joinRoom', { roomId, username });
@@ -532,7 +542,7 @@ export default function GameRoom() {
                         allPlayers={podiumData.allPlayers}
                         isHost={isHost}
                         onPlayAgain={handlePlayAgain}
-                        onReturnHome={() => navigate('/')}
+                        onExitGame={handleLeaveRoom}
                     />
                 )}
             </main>

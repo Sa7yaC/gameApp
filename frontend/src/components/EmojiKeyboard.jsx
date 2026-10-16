@@ -284,7 +284,7 @@ export default function EmojiKeyboard({ onDropClue, disabled }) {
 
                 <div className="gs-selected-tiles">
                     {selectedEmojis.length === 0 ? (
-                        <span className="gs-selected-empty">Tap an emoji above to build your clue…</span>
+                        <span className="gs-selected-empty">Choose emojis</span>
                     ) : (
                         selectedEmojis.map((emoji, idx) => (
                             <button
@@ -319,9 +319,10 @@ export default function EmojiKeyboard({ onDropClue, disabled }) {
                     className="gs-send-emoji-btn"
                     onClick={handleSend}
                     disabled={disabled || selectedEmojis.length === 0}
+                    aria-label="Send emoji clue"
+                    title="Send emoji clue"
                 >
                     <Send size={16} />
-                    <span>Send Emoji</span>
                 </button>
             </div>
 

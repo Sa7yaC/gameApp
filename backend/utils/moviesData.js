@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 export const moviesDatabase = [
   // ==================== Indian — EASY ====================
   { title: "Dangal", language: "Indian", difficulty: "easy", year: 2016, wordCount: 1 },
@@ -525,15 +527,40 @@ export function getMainTitleWordCount(title) {
 }
 
 /**
- * Filter and get 3 distinct movie options based on difficulty and selected languages
+ * Return up to 3 distinct, unused movie options for the current settings.
  */
+function shuffleMovies(movies) {
+    const shuffled = [...movies];
+
+    for (let index = shuffled.length - 1; index > 0; index--) {
+        const swapIndex = randomInt(index + 1);
+        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+
+    return shuffled;
+}
+
+function formatMovieChoice(movie) {
+    const words = getMainTitleWordCount(movie.title);
+
+    return {
+        title: movie.title,
+        name: movie.title,
+        language: movie.language,
+        year: movie.year,
+        years: movie.year,
+        wordCount: words,
+        countOfWords: words
+    };
+}
+
 export function getMovieChoices(difficulty = 'easy', languages = ['Indian'], usedTitles = new Set()) {
     const selectedLanguages = languages.map(language =>
         language.toLowerCase() === 'bollywood' ? 'indian' : language.toLowerCase()
     );
     if (selectedLanguages.includes('mixed')) {
         const categories = ['Indian', 'Hollywood', 'Animated'];
-        return categories.map(category => {
+        const categoryPools = categories.map(category => {
             let categoryPool = moviesDatabase.filter(movie => {
                 if (movie.language !== category) return false;
                 if (difficulty === 'easy') return movie.difficulty === 'easy';
@@ -545,21 +572,29 @@ export function getMovieChoices(difficulty = 'easy', languages = ['Indian'], use
                 categoryPool = moviesDatabase.filter(movie => movie.language === category);
             }
 
-            const unusedMovies = categoryPool.filter(movie => !usedTitles.has(movie.title.toLowerCase()));
-            const available = unusedMovies.length > 0 ? unusedMovies : categoryPool;
-            const movie = available[Math.floor(Math.random() * available.length)];
-            const words = getMainTitleWordCount(movie.title);
-
-            return {
-                title: movie.title,
-                name: movie.title,
-                language: movie.language,
-                year: movie.year,
-                years: movie.year,
-                wordCount: words,
-                countOfWords: words
-            };
+            return categoryPool;
         });
+        const unusedMovies = Array.from(new Map(
+            categoryPools.flat()
+                .filter(movie => !usedTitles.has(movie.title.toLowerCase()))
+                .map(movie => [movie.title.toLowerCase(), movie])
+        ).values());
+        const availableMovies = unusedMovies.length > 0
+            ? unusedMovies
+            : Array.from(new Map(categoryPools.flat().map(movie => [movie.title.toLowerCase(), movie])).values());
+        const availableTitles = new Set(availableMovies.map(movie => movie.title.toLowerCase()));
+        const selected = [];
+
+        for (const categoryPool of categoryPools) {
+            const categoryMovies = shuffleMovies(categoryPool.filter(movie => availableTitles.has(movie.title.toLowerCase())));
+            if (categoryMovies.length > 0) {
+                selected.push(categoryMovies[0]);
+            }
+        }
+
+        const selectedTitles = new Set(selected.map(movie => movie.title.toLowerCase()));
+        const remainingMovies = shuffleMovies(availableMovies.filter(movie => !selectedTitles.has(movie.title.toLowerCase())));
+        return [...selected, ...remainingMovies].slice(0, 3).map(formatMovieChoice);
     }
 
     let pool = [];
@@ -582,25 +617,9 @@ export function getMovieChoices(difficulty = 'easy', languages = ['Indian'], use
         pool = [...moviesDatabase];
     }
 
-    // Filter out already used titles if possible
-    let available = pool.filter(m => !usedTitles.has(m.title.toLowerCase()));
-    if (available.length < 3) {
-        available = pool;
-    }
-
-    const shuffled = [...available].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 3).map(m => {
-        const words = getMainTitleWordCount(m.title);
-        return {
-            title: m.title,
-            name: m.title,
-            language: m.language,
-            year: m.year,
-            years: m.year,
-            wordCount: words,
-            countOfWords: words
-        };
-    });
+    const unusedMovies = pool.filter(movie => !usedTitles.has(movie.title.toLowerCase()));
+    const availableMovies = unusedMovies.length > 0 ? unusedMovies : pool;
+    return shuffleMovies(availableMovies).slice(0, 3).map(formatMovieChoice);
 }
 
 /**

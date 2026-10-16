@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, CheckCircle2, Sparkles, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { PlayerAvatar } from './LobbyAvatars';
 import GameIcon from './GameIcon';
 
@@ -12,14 +12,18 @@ export default function ChatSection({
     phase
 }) {
     const [inputValue, setInputValue] = useState('');
+    const [isCollapsed, setIsCollapsed] = useState(
+        () => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches
+    );
     const chatFeedRef = useRef(null);
+    const visibleMessages = messages.filter((msg) => !msg.isSystem);
 
     // Only scroll the internal chat container, NEVER the window!
     useEffect(() => {
-        if (chatFeedRef.current) {
+        if (!isCollapsed && chatFeedRef.current) {
             chatFeedRef.current.scrollTop = chatFeedRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, isCollapsed]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -44,17 +48,28 @@ export default function ChatSection({
         isInputDisabled = false;
     }
 
+    const showComposer = !(isActor && phase === 'PLAYING');
+
     return (
-        <div className="gs-panel gs-chat-panel">
+        <div className={`gs-panel gs-chat-panel${isCollapsed ? ' is-collapsed' : ''}`}>
             <div className="gs-panel-header">
-                <h3 className="gs-panel-title">Guesses</h3>
+                <button
+                    type="button"
+                    className="gs-chat-collapse"
+                    onClick={() => setIsCollapsed((collapsed) => !collapsed)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls="gs-chat-feed"
+                >
+                    <span className="gs-panel-title">
+                        Guesses <span className="gs-panel-count">({visibleMessages.length})</span>
+                    </span>
+                    {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
             </div>
 
             {/* Messages feed: scrolls only inside this element */}
-            <div className="gs-chat-feed" ref={chatFeedRef}>
-                {messages
-                    .filter((msg) => !msg.isSystem) // no join/leave/round broadcasts
-                    .map((msg, index) => {
+            <div className="gs-chat-feed" id="gs-chat-feed" ref={chatFeedRef} hidden={isCollapsed}>
+                {visibleMessages.map((msg, index) => {
                             if (msg.isActorWarning) {
                                 return (
                                     <div key={msg.id || index} className="gs-chat-warning">
@@ -101,16 +116,18 @@ export default function ChatSection({
                                 </div>
                             </div>
                         );
-                    })}
+                })}
             </div>
 
             {/* Input Form */}
+            {showComposer && (
             <form className="gs-chat-input-row" onSubmit={handleSubmit}>
                 <input
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder={placeholderText}
+                    aria-label="Enter your guess or chat message"
                     disabled={isInputDisabled}
                     className={`gs-chat-input${hasGuessed && phase === 'PLAYING' ? ' success' : ''}`}
                     maxLength={120}
@@ -125,6 +142,7 @@ export default function ChatSection({
                     <Send size={17} />
                 </button>
             </form>
+            )}
         </div>
     );
 }

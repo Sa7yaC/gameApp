@@ -10,7 +10,7 @@ import MoviePickerModal from '../components/MoviePickerModal';
 import PodiumModal from '../components/PodiumModal';
 import sounds from '../utils/soundEffects';
 import { generateNordpassUsername } from '../utils/nordpassUsername';
-import { Volume2, VolumeX, LogOut, Clock, Dices } from 'lucide-react';
+import { Volume2, VolumeX, LogOut, Clock, Dices, Menu } from 'lucide-react';
 import { PlayerAvatar } from '../components/LobbyAvatars';
 import GameIcon from '../components/GameIcon';
 import '../styles/GameRoom.css';
@@ -25,6 +25,9 @@ export default function GameRoom() {
     const [hasJoinedSocket, setHasJoinedSocket] = useState(false);
     const [promptUser, setPromptUser] = useState(false);
     const [isMuted, setIsMuted] = useState(sounds.isMuted);
+    const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
+    const gameMenuRef = useRef(null);
+    const gameMenuButtonRef = useRef(null);
     const isBrowserReload = useRef(
         window.performance?.getEntriesByType('navigation')[0]?.type === 'reload'
     );
@@ -81,6 +84,35 @@ export default function GameRoom() {
         socket.disconnect();
         navigate('/', { replace: true });
     }, [navigate, socket]);
+
+    useEffect(() => {
+        if (!isGameMenuOpen) return undefined;
+
+        const closeOnOutsideClick = (event) => {
+            if (!gameMenuRef.current?.contains(event.target)) {
+                setIsGameMenuOpen(false);
+            }
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') {
+                setIsGameMenuOpen(false);
+                gameMenuButtonRef.current?.focus();
+            }
+        };
+
+        document.addEventListener('pointerdown', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [isGameMenuOpen]);
+
+    useEffect(() => {
+        if (isGameMenuOpen) {
+            gameMenuRef.current?.querySelector('[role="menuitem"]')?.focus();
+        }
+    }, [isGameMenuOpen]);
 
     // Connect and setup socket listeners with auto-rejoin on connect/reconnect
     useEffect(() => {
@@ -321,6 +353,13 @@ export default function GameRoom() {
     };
 
     const handleLeaveRoom = () => {
+        if (
+            gameState !== 'LOBBY' &&
+            gameState !== 'GAME_OVER' &&
+            !window.confirm('Leave this game? Your current turn will end for you.')
+        ) {
+            return;
+        }
         socket.disconnect();
         navigate('/');
     };
@@ -336,10 +375,9 @@ export default function GameRoom() {
     const turnNumber = turnIndexInRound >= 0 ? turnIndexInRound + 1 : 0;
     const turnTotal = activeGuessers.length;
 
-    // Timer as mm:ss + progress percentage
+    // Timer display is derived from the server-synchronized countdown state.
     const timerMinutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
     const timerSeconds = String(Math.max(0, timeLeft % 60)).padStart(2, '0');
-    const timerPct = Math.max(3, Math.min(100, (timeLeft / (settings?.guessingTime || 90)) * 100));
 
     // Modal if joined via invite link without username
     if (promptUser) {
@@ -418,28 +456,72 @@ export default function GameRoom() {
                             <div className={`gs-timer${timeLeft <= 10 ? ' urgent' : ''}`}>
                                 <Clock size={20} className="gs-timer-icon" />
                                 <span className="gs-timer-time">{timerMinutes}:{timerSeconds}</span>
-                                <span className="gs-timer-track">
-                                    <span className="gs-timer-fill" style={{ width: `${timerPct}%` }} />
-                                </span>
                             </div>
                         )}
 
-                        <button
-                            onClick={toggleMute}
-                            className="gs-icon-btn"
-                            title={isMuted ? 'Unmute audio' : 'Mute audio'}
-                        >
-                            {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
-                        </button>
-
-                        <button
-                            onClick={handleLeaveRoom}
-                            className="gs-leave-btn"
-                            title="Leave Room"
-                        >
-                            <GameIcon name="leave" size={17} alt="Leave room" fallback={<LogOut size={15} />} />
-                            <span>Leave Room</span>
-                        </button>
+                        <div className="gs-menu-wrap" ref={gameMenuRef}>
+                            <button
+                                ref={gameMenuButtonRef}
+                                type="button"
+                                onClick={() => setIsGameMenuOpen((open) => !open)}
+                                className="gs-icon-btn gs-menu-trigger"
+                                title="Game menu"
+                                aria-label={isGameMenuOpen ? 'Close game menu' : 'Open game menu'}
+                                aria-haspopup="menu"
+                                aria-expanded={isGameMenuOpen}
+                                aria-controls="gs-game-menu"
+                            >
+                                <Menu size={20} />
+                            </button>
+                            <div
+                                className="gs-game-menu"
+                                id="gs-game-menu"
+                                role="menu"
+                                aria-label="Game menu"
+                                hidden={!isGameMenuOpen}
+                                onKeyDown={(event) => {
+                                    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                                    event.preventDefault();
+                                    const items = Array.from(
+                                        gameMenuRef.current.querySelectorAll('[role="menuitem"]')
+                                    );
+                                    const index = items.indexOf(document.activeElement);
+                                    const nextIndex = event.key === 'Home'
+                                        ? 0
+                                        : event.key === 'End'
+                                            ? items.length - 1
+                                            : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+                                    items[nextIndex]?.focus();
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="gs-game-menu-item"
+                                    onClick={() => {
+                                        toggleMute();
+                                        setIsGameMenuOpen(false);
+                                        gameMenuButtonRef.current?.focus();
+                                    }}
+                                >
+                                    {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                                    <span>Sound {isMuted ? 'Off' : 'On'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="gs-game-menu-item is-danger"
+                                    onClick={() => {
+                                        setIsGameMenuOpen(false);
+                                        gameMenuButtonRef.current?.focus();
+                                        handleLeaveRoom();
+                                    }}
+                                >
+                                    <GameIcon name="leave" size={18} alt="" fallback={<LogOut size={16} />} />
+                                    <span>Leave Room</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </header>
             )}

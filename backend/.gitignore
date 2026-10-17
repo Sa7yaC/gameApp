@@ -1,2 +1,5 @@
 node_modules/
 .env
+performance/.env
+performance/reports/*
+!performance/reports/README.md

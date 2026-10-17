@@ -128,6 +128,23 @@
   min-width: 52px;
 }
 
+.gs-timer-track {
+  width: 96px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ffe0b8;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.gs-timer-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb13b 0%, #ff8a1e 100%);
+  transition: width 0.9s linear;
+}
+
 .gs-timer.urgent .gs-timer-icon {
   color: #f0483c;
   animation: gs-timer-blink 0.7s ease-in-out infinite alternate;
@@ -135,6 +152,10 @@
 
 .gs-timer.urgent {
   background: #ffe7e5;
+}
+
+.gs-timer.urgent .gs-timer-fill {
+  background: linear-gradient(90deg, #ff7b6e 0%, #ef3b2d 100%);
 }
 
 @keyframes gs-timer-blink {
@@ -186,6 +207,7 @@
 .gs-menu-wrap {
   position: relative;
   flex: none;
+  display: none;
 }
 
 .gs-game-menu {
@@ -1442,6 +1464,14 @@
     gap: 7px;
   }
 
+  .gs-desktop-control {
+    display: none;
+  }
+
+  .gs-menu-wrap {
+    display: block;
+  }
+
   .gs-topbar-chips {
     grid-area: chips;
     width: 100%;
@@ -1485,6 +1515,10 @@
     height: 40px;
     gap: 5px;
     padding: 0 9px;
+  }
+
+  .gs-timer-track {
+    display: none;
   }
 
   .gs-timer-icon {

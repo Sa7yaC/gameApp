@@ -8,6 +8,12 @@ import "./styles/GameScreen.css";
 
 inject();
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+    console.error("Failed to register static asset cache:", error);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

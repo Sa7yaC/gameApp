@@ -378,6 +378,7 @@ export default function GameRoom() {
     // Timer display is derived from the server-synchronized countdown state.
     const timerMinutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
     const timerSeconds = String(Math.max(0, timeLeft % 60)).padStart(2, '0');
+    const timerPct = Math.max(3, Math.min(100, (timeLeft / (settings?.guessingTime || 90)) * 100));
 
     // Modal if joined via invite link without username
     if (promptUser) {
@@ -456,8 +457,31 @@ export default function GameRoom() {
                             <div className={`gs-timer${timeLeft <= 10 ? ' urgent' : ''}`}>
                                 <Clock size={20} className="gs-timer-icon" />
                                 <span className="gs-timer-time">{timerMinutes}:{timerSeconds}</span>
+                                <span className="gs-timer-track" aria-hidden="true">
+                                    <span className="gs-timer-fill" style={{ width: `${timerPct}%` }} />
+                                </span>
                             </div>
                         )}
+
+                        <button
+                            type="button"
+                            onClick={toggleMute}
+                            className="gs-icon-btn gs-desktop-control"
+                            title={isMuted ? 'Unmute audio' : 'Mute audio'}
+                            aria-label={isMuted ? 'Unmute audio' : 'Mute audio'}
+                        >
+                            {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleLeaveRoom}
+                            className="gs-leave-btn gs-desktop-control"
+                            title="Leave Room"
+                        >
+                            <GameIcon name="leave" size={17} alt="Leave room" fallback={<LogOut size={15} />} />
+                            <span>Leave Room</span>
+                        </button>
 
                         <div className="gs-menu-wrap" ref={gameMenuRef}>
                             <button

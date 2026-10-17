@@ -42,6 +42,7 @@ body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -68,6 +69,7 @@ body {
 
 .landing-page-container {
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   display: flex;
   align-items: center;
@@ -76,7 +78,6 @@ body {
   background-image: url('/cinema-bg.jpg');
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
   background-repeat: no-repeat;
 }
 
@@ -542,13 +543,12 @@ body {
    ========================================================== */
 
 .gameroom-container {
-  width: 100%;
-  min-width: 0;
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   background-color: var(--bg-main);
   overflow: hidden;
   position: relative;
@@ -557,6 +557,7 @@ body {
 .gameroom-container.is-lobby {
   height: auto;
   min-height: 100vh;
+  min-height: 100dvh;
   max-height: none;
   overflow-y: auto;
   background: transparent;
@@ -572,10 +573,10 @@ body {
 }
 
 .gameroom-main-stage.lobby-mode-stage {
-  min-width: 0;
   padding: 0;
   height: auto;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: visible;
   width: 100%;
   display: block;

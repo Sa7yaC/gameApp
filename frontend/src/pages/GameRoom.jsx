@@ -15,17 +15,6 @@ import { PlayerAvatar } from '../components/LobbyAvatars';
 import GameIcon from '../components/GameIcon';
 import '../styles/GameRoom.css';
 
-function getRoomSessionToken(roomId, username) {
-    const tokenKey = `charades_session_${roomId}_${username.trim().toLowerCase()}`;
-    let token = sessionStorage.getItem(tokenKey);
-    if (!token) {
-        const tokenBytes = window.crypto.getRandomValues(new Uint8Array(32));
-        token = Array.from(tokenBytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-        sessionStorage.setItem(tokenKey, token);
-    }
-    return token;
-}
-
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
@@ -129,10 +118,8 @@ export default function GameRoom() {
     useEffect(() => {
         if (!username || isBrowserReload.current) return;
 
-        const sessionToken = getRoomSessionToken(roomId, username);
-
         const handleJoin = () => {
-            socket.emit('joinRoom', { roomId, username, sessionToken });
+            socket.emit('joinRoom', { roomId, username });
         };
 
         if (socket.connected) {
@@ -201,12 +188,7 @@ export default function GameRoom() {
         };
         socket.on('gameAbandoned', handleRoomClosed);
         socket.on('roomClosed', handleRoomClosed);
-        socket.on('roomError', (data) => {
-            addGameWarning(data?.message || 'Could not join the room.');
-            if (data?.message?.includes("doesn't exist")) {
-                handleRoomClosed();
-            }
-        });
+        socket.on('roomError', handleRoomClosed);
         socket.on('gameError', (data) => {
             addGameWarning(data?.message || 'The game action could not be completed.');
         });
@@ -344,11 +326,7 @@ export default function GameRoom() {
         }
         sessionStorage.setItem('charades_user', trimmed);
         setPromptUser(false);
-        socket.emit('joinRoom', {
-            roomId,
-            username: trimmed,
-            sessionToken: getRoomSessionToken(roomId, trimmed)
-        });
+        socket.emit('joinRoom', { roomId, username: trimmed });
         setHasJoinedSocket(true);
     };
 
@@ -396,7 +374,6 @@ export default function GameRoom() {
         ) {
             return;
         }
-        socket.emit('leaveRoom');
         socket.disconnect();
         navigate('/');
     };

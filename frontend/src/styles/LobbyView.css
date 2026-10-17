@@ -5,9 +5,9 @@
 .lob-page {
   position: relative;
   flex: 1;
-  width: 100%;
   min-width: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 30px 24px 56px;
   background-image: url('/cinema-bg.jpg');
   background-size: cover;
@@ -28,7 +28,6 @@
 .lob-content {
   position: relative;
   z-index: 1;
-  width: 100%;
   max-width: 1260px;
   margin: 0 auto;
   display: flex;
@@ -331,11 +330,6 @@ button.lob-ready-pill:hover {
 .lob-ready-pill.is-not-ready {
   background: #edf1f9;
   color: #8a94b8;
-}
-
-.lob-ready-pill.is-disconnected {
-  background: #fff3dc;
-  color: #9a6812;
 }
 
 .lob-ready-dot {

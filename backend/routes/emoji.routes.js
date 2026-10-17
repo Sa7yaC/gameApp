@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
             await redisClient.set(CACHE_KEY, JSON.stringify(CURATED_EMOJI_CATEGORIES), 'EX', CACHE_TTL_SECONDS);
         }
     } catch (err) {
-        // Cache warming is best-effort only
+        console.warn('[Emojis] Redis cache warming failed:', err.message);
     }
 
     res.json(payload);

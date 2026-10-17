@@ -48,6 +48,10 @@ export const redisClient = redisUrl
         port: parseInt(process.env.REDIS_PORT || '6380', 10),
     });
 
+redisClient.on('error', (err) => {
+    console.warn('⚠️ Redis Client Warning (using in-memory fallback):', err.message);
+});
+
 export const initDatabases = async () => {
     // Initialize PostgreSQL Schema
     try {

@@ -28,7 +28,7 @@ export default function ClueBoard({
     const reveal = phase === 'TURN_REVEAL';
 
     const latest = clues[clues.length - 1];
-    const history = clues.slice(0, -1).reverse();
+    const history = clues.slice(0, -1);
     const latestEmojis = latest ? splitEmojis(latest) : [];
 
     const showSecretTitle = isActor && movieDetails && playing;
@@ -84,7 +84,7 @@ export default function ClueBoard({
                             <div className="gs-clue-history">
                                 {history.map((entry, idx) => (
                                     <div key={`hs-${idx}`} className="gs-clue-history-row">
-                                        <span className="gs-clue-hist-num">#{history.length - idx}</span>
+                                        <span className="gs-clue-hist-num">#{idx + 1}</span>
                                         <span className="gs-clue-hist-emos">{entry}</span>
                                     </div>
                                 ))}

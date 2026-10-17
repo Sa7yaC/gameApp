@@ -136,6 +136,15 @@ export default function GameRoom() {
     }, [roomId, username]);
 
     useEffect(() => {
+        const addGameWarning = (message) => {
+            setChatMessages((prev) => [...prev.slice(-59), {
+                id: `warning_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                user: 'System',
+                text: message,
+                isActorWarning: true
+            }]);
+        };
+
         // Init room state when joining
         socket.on('initRoomState', (data) => {
             setHostId(data.hostId);
@@ -180,6 +189,9 @@ export default function GameRoom() {
         socket.on('gameAbandoned', handleRoomClosed);
         socket.on('roomClosed', handleRoomClosed);
         socket.on('roomError', handleRoomClosed);
+        socket.on('gameError', (data) => {
+            addGameWarning(data?.message || 'The game action could not be completed.');
+        });
 
         // Turn selecting phase
         socket.on('turnSelecting', (data) => {
@@ -240,7 +252,8 @@ export default function GameRoom() {
 
         // Clue validation error
         socket.on('clueError', (data) => {
-            console.warn('Clue rejected by server:', data.message);
+            console.warn('Clue rejected by server:', data?.message);
+            addGameWarning(data?.message || 'That emoji clue could not be added.');
         });
 
         // Chat message
@@ -288,6 +301,7 @@ export default function GameRoom() {
             socket.off('gameAbandoned');
             socket.off('roomClosed');
             socket.off('roomError');
+            socket.off('gameError');
             socket.off('turnSelecting');
             socket.off('movieChoices');
             socket.off('actorSecretMovie');

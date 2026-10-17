@@ -1,10 +1,39 @@
 import { getMovieChoices, getMainTitleWordCount, matchesMovieTitle, normalizeTitle, maskTitle } from '../utils/moviesData.js';
+import { normalizeEmojiClue } from '../utils/emojiClue.js';
 import { generateNordpassUsername } from '../utils/nordpassUsername.js';
+import { ROOM_CODE_PATTERN } from '../utils/generateRoom.js';
 import { redisClient, pgPool } from '../config/db.js';
 import { closeRoom, memoryRooms, liveRooms, registerLiveRoom } from '../controllers/room.controller.js';
 
 // Rooms in-memory state: Map<roomId, RoomState>
 const rooms = new Map();
+const roomDifficulties = new Set(['easy', 'medium', 'hard']);
+const roomCategories = new Set(['Animated', 'Hollywood', 'Indian']);
+const roomSettingKeys = new Set([
+    'difficulty',
+    'languages',
+    'category',
+    'totalRounds',
+    'guessingTime',
+    'hintsEnabled'
+]);
+const MAX_CLUES_PER_TURN = 30;
+
+function createSocketEventLimiter() {
+    const eventTimestamps = new Map();
+    return (eventName, maxEvents, windowMs) => {
+        const now = Date.now();
+        const recentTimestamps = (eventTimestamps.get(eventName) || [])
+            .filter((timestamp) => now - timestamp < windowMs);
+        if (recentTimestamps.length >= maxEvents) {
+            eventTimestamps.set(eventName, recentTimestamps);
+            return false;
+        }
+        recentTimestamps.push(now);
+        eventTimestamps.set(eventName, recentTimestamps);
+        return true;
+    };
+}
 
 /**
  * Helper to get or find room state case-insensitively
@@ -88,6 +117,49 @@ function findRoom(roomId) {
     return null;
 }
 
+function findRoomMetadata(roomId) {
+    const liveRoom = liveRooms.get(roomId.toLowerCase());
+    if (liveRoom) return liveRoom;
+
+    for (const [key, metadata] of memoryRooms.entries()) {
+        if (key.toLowerCase() === roomId.toLowerCase()) return metadata;
+    }
+
+    return null;
+}
+
+async function loadRoomMetadata(roomId) {
+    for (const key of new Set([roomId, roomId.toLowerCase(), roomId.toUpperCase()])) {
+        try {
+            const serialized = await redisClient.get(`room:${key}:meta`);
+            if (serialized) return JSON.parse(serialized);
+        } catch (error) {
+            console.warn(`[Room] Redis lookup failed for room ${roomId}:`, error.message);
+            break;
+        }
+    }
+
+    try {
+        const result = await pgPool.query(
+            'SELECT room_id, host_name, settings, status FROM rooms WHERE LOWER(room_id) = LOWER($1) LIMIT 1',
+            [roomId]
+        );
+        const row = result.rows[0];
+        if (row) {
+            return {
+                roomId: row.room_id,
+                hostName: row.host_name,
+                settings: row.settings,
+                status: row.status
+            };
+        }
+    } catch (error) {
+        console.warn(`[Room] PostgreSQL lookup failed for room ${roomId}:`, error.message);
+    }
+
+    return null;
+}
+
 /**
  * Save chat message in memory and Redis
  */
@@ -99,8 +171,8 @@ async function recordChatMessage(room, messageObj) {
     try {
         await redisClient.rpush(`room:${room.roomId}:chats`, JSON.stringify(messageObj));
         await redisClient.ltrim(`room:${room.roomId}:chats`, -60, -1);
-    } catch (e) {
-        // ignore redis error
+    } catch (error) {
+        console.warn(`[Chat] Failed to save Redis history for room ${room.roomId}:`, error.message);
     }
 }
 
@@ -153,49 +225,56 @@ function getPlayersArray(room) {
 export const initSocket = (io) => {
     io.on('connection', (socket) => {
         let currentRoomId = null;
+        const allowEvent = createSocketEventLimiter();
 
         // Player joins a room
-        socket.on('joinRoom', async ({ roomId, username }) => {
-            if (!roomId) return;
+        socket.on('joinRoom', async (payload) => {
+            const roomId = payload?.roomId;
+            const username = payload?.username;
+            if (typeof roomId !== 'string' || !ROOM_CODE_PATTERN.test(roomId.trim())) {
+                socket.emit('roomError', { message: 'Enter a valid room code.' });
+                return;
+            }
+            if (username !== undefined && (
+                typeof username !== 'string' ||
+                username.length > 22 ||
+                /[\u0000-\u001f\u007f]/u.test(username)
+            )) {
+                socket.emit('roomError', { message: 'Username must be at most 22 characters.' });
+                return;
+            }
+
             const cleanRoomId = roomId.trim();
-            const cleanUsername = (username || '').trim() || generateNordpassUsername();
-            const metadata = Array.from(memoryRooms.entries())
-                .find(([key]) => key.toLowerCase() === cleanRoomId.toLowerCase())?.[1];
-            if (metadata?.status === 'closed' && !liveRooms.has(cleanRoomId.toLowerCase())) {
+            const cleanUsername = username?.trim() || generateNordpassUsername();
+            let metadata = findRoomMetadata(cleanRoomId);
+            if (!metadata) {
+                metadata = await loadRoomMetadata(cleanRoomId);
+                if (metadata) memoryRooms.set(metadata.roomId || cleanRoomId, metadata);
+            }
+            if (!metadata || metadata.status === 'closed') {
                 socket.emit('roomError', { message: "Room doesn't exist. Please check the room code." });
                 return;
             }
 
             const room = getOrCreateRoom(cleanRoomId);
+            if (room.players.has(socket.id)) return;
+            const duplicateName = Array.from(room.players.values())
+                .some((player) => player.id !== socket.id &&
+                    player.username.toLowerCase() === cleanUsername.toLowerCase());
+            if (duplicateName) {
+                socket.emit('roomError', { message: 'That username is already in use in this room.' });
+                return;
+            }
+
             registerLiveRoom(room);
             currentRoomId = room.roomId; // use canonical roomId
 
             socket.join(room.roomId);
 
-            // Check if player is reconnecting with same username
-            let existingScore = 0;
-            let existingPlayerEntry = null;
-            let existingAvatarIndex = null;
-            let wasHost = false;
-            for (const [sId, p] of room.players.entries()) {
-                if (p.username.toLowerCase() === cleanUsername.toLowerCase()) {
-                    existingScore = p.score;
-                    existingPlayerEntry = sId;
-                    existingAvatarIndex = p.avatarIndex;
-                    if (p.isHost || sId === room.hostId) wasHost = true;
-                    break;
-                }
-            }
-            if (existingPlayerEntry) {
-                room.players.delete(existingPlayerEntry);
-            }
-
-            // Assign Host if no host, first player, previous host, or name matches created room hostName
+            // Assign the intended host when they arrive after a temporary first player.
             const isFirstPlayer = room.players.size === 0;
             const matchesHostName = room.hostName && room.hostName.toLowerCase() === cleanUsername.toLowerCase();
-            const shouldBeHost = isFirstPlayer || wasHost || matchesHostName || !room.hostId || (room.hostId === existingPlayerEntry);
-
-            if (matchesHostName || shouldBeHost) {
+            if (isFirstPlayer || matchesHostName || !room.hostId) {
                 room.hostId = socket.id;
                 room.hostName = cleanUsername;
                 if (matchesHostName) {
@@ -206,37 +285,19 @@ export const initSocket = (io) => {
                 }
             }
 
-            // Determine if player joins mid-game
-            const isMidGame = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
-            if (existingPlayerEntry && isMidGame) {
-                room.actorQueue = room.actorQueue.map((playerId) =>
-                    playerId === existingPlayerEntry ? socket.id : playerId
-                );
-                if (room.actedThisRound.delete(existingPlayerEntry)) {
-                    room.actedThisRound.add(socket.id);
-                }
-                if (room.guessedPlayers.delete(existingPlayerEntry)) {
-                    room.guessedPlayers.add(socket.id);
-                }
-                if (room.currentActorId === existingPlayerEntry) {
-                    room.currentActorId = socket.id;
-                }
-            }
             const assignedAvatarIndices = new Set(
                 Array.from(room.players.values(), (player) => player.avatarIndex)
             );
             const availableAvatarIndices = Array.from({ length: 15 }, (_, index) => index)
                 .filter((index) => !assignedAvatarIndices.has(index));
-            const avatarIndex = existingAvatarIndex ?? (
-                availableAvatarIndices.length > 0
-                    ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
-                    : Math.floor(Math.random() * 15)
-            );
+            const avatarIndex = availableAvatarIndices.length > 0
+                ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
+                : Math.floor(Math.random() * 15);
 
             const playerObj = {
                 id: socket.id,
                 username: cleanUsername,
-                score: existingScore,
+                score: 0,
                 avatarIndex,
                 isHost: socket.id === room.hostId,
                 isReady: true,
@@ -299,23 +360,38 @@ export const initSocket = (io) => {
         });
 
         // Host updates lobby settings
-        socket.on('updateSettings', ({ settings }) => {
+        socket.on('updateSettings', (payload) => {
             if (!currentRoomId) return;
+            const settings = payload?.settings;
+            if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+                socket.emit('gameError', { message: 'Room settings are invalid.' });
+                return;
+            }
             const room = getOrCreateRoom(currentRoomId);
-            if (!room || room.hostId !== socket.id || room.gameState !== 'LOBBY') return;
-            const requestedGuessingTime = parseInt(
-                settings.guessingTime ?? room.settings.guessingTime ?? 90,
-                10
-            );
-
-            room.settings = {
-                ...room.settings,
-                ...settings,
-                totalRounds: Math.min(Math.max(parseInt(settings.totalRounds || 3, 10), 1), 6),
-                guessingTime: Number.isFinite(requestedGuessingTime)
-                    ? Math.min(Math.max(requestedGuessingTime, 30), 300)
-                    : 90
-            };
+            if (!room || !room.players.has(socket.id) || room.hostId !== socket.id || room.gameState !== 'LOBBY') return;
+            const updatedSettings = { ...room.settings, ...settings };
+            const invalidKeys = Object.keys(settings).some((key) => !roomSettingKeys.has(key));
+            const invalidLanguages = !Array.isArray(updatedSettings.languages) ||
+                updatedSettings.languages.length === 0 ||
+                updatedSettings.languages.length > roomCategories.size ||
+                updatedSettings.languages.some((category) => !roomCategories.has(category));
+            if (
+                invalidKeys ||
+                !roomDifficulties.has(updatedSettings.difficulty) ||
+                invalidLanguages ||
+                !Number.isInteger(updatedSettings.totalRounds) ||
+                updatedSettings.totalRounds < 1 ||
+                updatedSettings.totalRounds > 6 ||
+                !Number.isInteger(updatedSettings.guessingTime) ||
+                updatedSettings.guessingTime < 30 ||
+                updatedSettings.guessingTime > 300 ||
+                (updatedSettings.hintsEnabled !== undefined && typeof updatedSettings.hintsEnabled !== 'boolean') ||
+                (updatedSettings.category !== undefined && !roomCategories.has(updatedSettings.category))
+            ) {
+                socket.emit('gameError', { message: 'Room settings are invalid.' });
+                return;
+            }
+            room.settings = updatedSettings;
 
             io.to(room.roomId).emit('settingsUpdated', room.settings);
             console.log(`[Socket] Room ${room.roomId} settings updated:`, room.settings);
@@ -335,39 +411,23 @@ export const initSocket = (io) => {
         });
 
         // Host starts the game
-        socket.on('startGame', (data) => {
-            const targetRoomId = data?.roomId || currentRoomId;
-            if (!targetRoomId) {
+        socket.on('startGame', () => {
+            if (!currentRoomId) {
                 console.warn(`[Game] startGame ignored: socket ${socket.id} has no currentRoomId`);
                 return;
             }
-            const room = getOrCreateRoom(targetRoomId);
+            const room = findRoom(currentRoomId);
             if (!room) {
-                console.warn(`[Game] startGame ignored: room not found for id ${targetRoomId}`);
+                console.warn(`[Game] startGame ignored: room not found for id ${currentRoomId}`);
                 return;
             }
-            currentRoomId = room.roomId;
             if (room.gameState !== 'LOBBY') {
                 console.warn(`[Game] startGame ignored: room ${room.roomId} gameState is ${room.gameState}, not LOBBY`);
                 return;
             }
 
-            let player = room.players.get(socket.id);
-            if (!player) {
-                for (const p of room.players.values()) {
-                    if (p.isHost) {
-                        player = p;
-                        break;
-                    }
-                }
-            }
-
-            const isHost = socket.id === room.hostId ||
-                (player && room.hostName && player.username.toLowerCase() === room.hostName.toLowerCase()) ||
-                (room.players.size > 0 && Array.from(room.players.keys())[0] === socket.id) ||
-                (room.players.size <= 1);
-
-            if (!isHost) {
+            const player = room.players.get(socket.id);
+            if (!player || room.hostId !== socket.id) {
                 console.warn(`[Game] Non-host ${player?.username || socket.id} tried to start game in ${room.roomId} (room.hostId=${room.hostId})`);
                 return;
             }
@@ -377,24 +437,6 @@ export const initSocket = (io) => {
                 console.warn(`[Game] startGame blocked: room ${room.roomId} has only ${room.players.size} player(s). Need at least 2.`);
                 socket.emit('gameError', { message: 'Need at least 2 players in the lobby to start the game!' });
                 return;
-            }
-
-            // Sync room.hostId
-            room.hostId = socket.id;
-            if (player) {
-                player.isHost = true;
-                if (!room.hostName) room.hostName = player.username;
-            } else {
-                room.players.set(socket.id, {
-                    id: socket.id,
-                    username: room.hostName || 'Host',
-                    score: 0,
-                    avatarIndex: Math.floor(Math.random() * 15),
-                    isHost: true,
-                    isReady: true,
-                    isSpectator: false,
-                    avatarSeed: room.hostName || 'Host'
-                });
             }
 
             // Reset scores and rounds
@@ -417,12 +459,21 @@ export const initSocket = (io) => {
         });
 
         // Actor selects one of the 3 movie choices
-        socket.on('selectMovie', ({ movieTitle }) => {
+        socket.on('selectMovie', (payload) => {
             if (!currentRoomId) return;
             const room = getOrCreateRoom(currentRoomId);
             if (!room || room.gameState !== 'CHOOSING_MOVIE' || room.currentActorId !== socket.id) return;
+            const movieTitle = payload?.movieTitle;
+            if (typeof movieTitle !== 'string') {
+                socket.emit('gameError', { message: 'Choose one of the available movies.' });
+                return;
+            }
 
-            const chosen = room.movieChoices.find(m => m.title.toLowerCase() === movieTitle.toLowerCase()) || room.movieChoices[0];
+            const chosen = room.movieChoices.find(m => m.title.toLowerCase() === movieTitle.trim().toLowerCase());
+            if (!chosen) {
+                socket.emit('gameError', { message: 'Choose one of the available movies.' });
+                return;
+            }
             room.currentMovie = chosen;
             room.usedMovieTitles.add(chosen.title.toLowerCase());
 
@@ -431,26 +482,24 @@ export const initSocket = (io) => {
         });
 
         // Actor drops an emoji clue
-        socket.on('dropClue', ({ emojiClue }) => {
+        socket.on('dropClue', (payload) => {
             if (!currentRoomId) return;
             const room = getOrCreateRoom(currentRoomId);
             if (!room || room.gameState !== 'PLAYING' || room.currentActorId !== socket.id) return;
+            const emojiClue = payload?.emojiClue;
             if (!emojiClue || typeof emojiClue !== 'string' || !emojiClue.trim()) return;
 
-            // Actor cannot enter words or text other than emojis!
-            if (/[\p{Letter}\p{Number}]/u.test(emojiClue)) {
-                socket.emit('clueError', { message: 'Only emojis are allowed as clues! Words, letters, and numbers are strictly prohibited.' });
+            const clueText = normalizeEmojiClue(emojiClue);
+            if (!clueText) {
+                socket.emit('clueError', { message: 'Use up to 24 emojis per clue. Text and plain numbers are not allowed.' });
                 return;
             }
-
-            // Sanitize clue to only valid emojis, ZWJ sequences, skin tone modifiers, and spaces
-            const clueText = emojiClue
-                .replace(/[^\p{Extended_Pictographic}\p{Emoji_Presentation}\u200d\ufe0f\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\s]/gu, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            if (!clueText) {
-                socket.emit('clueError', { message: 'Please select at least one emoji for your clue.' });
+            if (room.clues.length >= MAX_CLUES_PER_TURN) {
+                socket.emit('clueError', { message: `A turn can contain at most ${MAX_CLUES_PER_TURN} clues.` });
+                return;
+            }
+            if (!allowEvent('dropClue', 5, 1000)) {
+                socket.emit('clueError', { message: 'Please wait a moment before dropping another clue.' });
                 return;
             }
 
@@ -465,13 +514,26 @@ export const initSocket = (io) => {
 
 
         // Chat & Guessing message handler
-        socket.on('chatMessage', ({ message }) => {
-            if (!currentRoomId || !message) return;
+        socket.on('chatMessage', (payload) => {
+            if (!currentRoomId) return;
+            const message = payload?.message;
+            if (typeof message !== 'string') {
+                socket.emit('gameError', { message: 'Chat messages must be text.' });
+                return;
+            }
+            if (message.length > 120) {
+                socket.emit('gameError', { message: 'Chat messages must be 120 characters or fewer.' });
+                return;
+            }
             const room = getOrCreateRoom(currentRoomId);
             if (!room) return;
 
             const sender = room.players.get(socket.id);
             if (!sender) return;
+            if (!allowEvent('chatMessage', 8, 5000)) {
+                socket.emit('gameError', { message: 'Please wait a moment before sending another message.' });
+                return;
+            }
 
             const text = message.trim();
             if (!text) return;
@@ -562,7 +624,7 @@ export const initSocket = (io) => {
         socket.on('playAgain', () => {
             if (!currentRoomId) return;
             const room = getOrCreateRoom(currentRoomId);
-            if (!room || room.hostId !== socket.id) return;
+            if (!room || !room.players.has(socket.id) || room.hostId !== socket.id) return;
 
             resetGameToLobby(room);
             clearChatHistory(room, io);

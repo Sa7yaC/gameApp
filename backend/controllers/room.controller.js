@@ -1,6 +1,9 @@
-import generateRoomId from '../utils/generateRoom.js';
+import generateRoomId, { ROOM_CODE_PATTERN } from '../utils/generateRoom.js';
 import { generateNordpassUsername } from '../utils/nordpassUsername.js';
 import { pgPool, redisClient } from '../config/db.js';
+
+const roomDifficulties = new Set(['easy', 'medium', 'hard']);
+const roomLanguages = new Set(['Animated', 'Hollywood', 'Indian']);
 
 // In-memory fallback if DB is unavailable
 export const memoryRooms = new Map();
@@ -52,19 +55,50 @@ export async function closeRoom(roomId) {
 }
 
 export const createRoom = async (req, res) => {
-    const { userId, username, settings } = req.body;
-    const providedName = (username || userId || '').trim();
+    const { userId, username, settings } = req.body || {};
+    const suppliedName = username ?? userId;
+    if (
+        (suppliedName !== undefined && typeof suppliedName !== 'string') ||
+        (typeof suppliedName === 'string' &&
+            (suppliedName.length > 22 || /[\u0000-\u001f\u007f]/u.test(suppliedName)))
+    ) {
+        return res.status(400).json({ success: false, message: 'Username must be at most 22 characters.' });
+    }
+    if (settings !== undefined && (!settings || typeof settings !== 'object' || Array.isArray(settings))) {
+        return res.status(400).json({ success: false, message: 'Room settings are invalid.' });
+    }
+
+    const providedName = typeof suppliedName === 'string' ? suppliedName.trim() : '';
     const hostName = providedName || generateNordpassUsername();
     const roomId = generateRoomId();
-    const requestedGuessingTime = parseInt(settings?.guessingTime ?? 90, 10);
+    const difficulty = settings?.difficulty ?? 'easy';
+    const languages = settings?.languages ?? ['Indian'];
+    const totalRounds = Number(settings?.totalRounds ?? 3);
+    const requestedGuessingTime = Number(settings?.guessingTime ?? 90);
+
+    if (!roomDifficulties.has(difficulty)) {
+        return res.status(400).json({ success: false, message: 'Difficulty must be easy, medium, or hard.' });
+    }
+    if (
+        !Array.isArray(languages) ||
+        languages.length === 0 ||
+        languages.length > roomLanguages.size ||
+        languages.some((language) => !roomLanguages.has(language))
+    ) {
+        return res.status(400).json({ success: false, message: 'Choose one or more supported movie categories.' });
+    }
+    if (!Number.isInteger(totalRounds) || totalRounds < 1 || totalRounds > 6) {
+        return res.status(400).json({ success: false, message: 'Rounds must be a number from 1 to 6.' });
+    }
+    if (!Number.isInteger(requestedGuessingTime) || requestedGuessingTime < 30 || requestedGuessingTime > 300) {
+        return res.status(400).json({ success: false, message: 'Guessing time must be between 30 and 300 seconds.' });
+    }
 
     const roomSettings = {
-        difficulty: settings?.difficulty || 'easy',
-        languages: settings?.languages || ['Indian'],
-        totalRounds: settings?.totalRounds || 3,
-        guessingTime: Number.isFinite(requestedGuessingTime)
-            ? Math.min(Math.max(requestedGuessingTime, 30), 300)
-            : 90
+        difficulty,
+        languages,
+        totalRounds,
+        guessingTime: requestedGuessingTime
     };
 
     try {
@@ -115,9 +149,9 @@ export const createRoom = async (req, res) => {
 };
 
 export const joinRoom = async (req, res) => {
-    const { roomId } = req.body;
-    if (!roomId) {
-        return res.status(400).json({ success: false, message: 'Room code is required' });
+    const roomId = req.body?.roomId;
+    if (typeof roomId !== 'string' || !ROOM_CODE_PATTERN.test(roomId.trim())) {
+        return res.status(400).json({ success: false, message: 'Room code must contain 6 to 10 letters or numbers.' });
     }
 
     const cleanRoomId = roomId.trim();
@@ -148,8 +182,8 @@ export const joinRoom = async (req, res) => {
                 if (redisData) {
                     roomData = JSON.parse(redisData);
                 }
-            } catch (e) {
-                // ignore redis error
+            } catch (error) {
+                console.warn(`[Room] Redis lookup failed for room ${cleanRoomId}:`, error.message);
             }
         }
 
@@ -169,8 +203,8 @@ export const joinRoom = async (req, res) => {
                         status: row.status
                     };
                 }
-            } catch (e) {
-                // ignore pg error
+            } catch (error) {
+                console.warn(`[Room] PostgreSQL lookup failed for room ${cleanRoomId}:`, error.message);
             }
         }
 
@@ -198,8 +232,8 @@ export const getRoom = async (req, res) => {
     const { roomId } = req.params;
     const cleanRoomId = roomId?.trim();
 
-    if (!cleanRoomId) {
-        return res.status(400).json({ success: false, message: 'Room ID required' });
+    if (!cleanRoomId || !ROOM_CODE_PATTERN.test(cleanRoomId)) {
+        return res.status(400).json({ success: false, message: 'A valid room ID is required.' });
     }
 
     // Memory check

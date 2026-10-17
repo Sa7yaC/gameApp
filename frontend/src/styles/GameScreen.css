@@ -644,7 +644,9 @@
   margin-top: 12px;
   width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
 }
 

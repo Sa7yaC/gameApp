@@ -542,10 +542,13 @@ body {
    ========================================================== */
 
 .gameroom-container {
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   max-height: 100vh;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   background-color: var(--bg-main);
   overflow: hidden;
   position: relative;
@@ -569,6 +572,7 @@ body {
 }
 
 .gameroom-main-stage.lobby-mode-stage {
+  min-width: 0;
   padding: 0;
   height: auto;
   min-height: 100vh;

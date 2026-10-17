@@ -7,6 +7,8 @@ import { closeRoom, memoryRooms, liveRooms, registerLiveRoom } from '../controll
 
 // Rooms in-memory state: Map<roomId, RoomState>
 const rooms = new Map();
+const DISCONNECT_GRACE_MS = 2 * 60 * 1000;
+const disconnectTimers = new Map();
 const roomDifficulties = new Set(['easy', 'medium', 'hard']);
 const roomCategories = new Set(['Animated', 'Hollywood', 'Indian']);
 const roomSettingKeys = new Set([
@@ -33,6 +35,10 @@ function createSocketEventLimiter() {
         eventTimestamps.set(eventName, recentTimestamps);
         return true;
     };
+}
+
+function disconnectTimerKey(roomId, sessionToken) {
+    return `${roomId.toLowerCase()}:${sessionToken}`;
 }
 
 /**
@@ -218,6 +224,7 @@ function getPlayersArray(room) {
         hasGuessed: room.guessedPlayers.has(p.id),
         isActor: p.id === room.currentActorId,
         isSpectator: p.isSpectator || false,
+        isConnected: p.isConnected !== false,
         avatarSeed: p.avatarSeed || p.username
     }));
 }
@@ -231,8 +238,13 @@ export const initSocket = (io) => {
         socket.on('joinRoom', async (payload) => {
             const roomId = payload?.roomId;
             const username = payload?.username;
+            const sessionToken = payload?.sessionToken;
             if (typeof roomId !== 'string' || !ROOM_CODE_PATTERN.test(roomId.trim())) {
                 socket.emit('roomError', { message: 'Enter a valid room code.' });
+                return;
+            }
+            if (typeof sessionToken !== 'string' || !/^[a-f0-9]{64}$/u.test(sessionToken)) {
+                socket.emit('roomError', { message: 'This browser session could not be verified. Please reload and try again.' });
                 return;
             }
             if (username !== undefined && (
@@ -258,12 +270,39 @@ export const initSocket = (io) => {
 
             const room = getOrCreateRoom(cleanRoomId);
             if (room.players.has(socket.id)) return;
-            const duplicateName = Array.from(room.players.values())
-                .some((player) => player.id !== socket.id &&
-                    player.username.toLowerCase() === cleanUsername.toLowerCase());
+            const reconnectingPlayer = Array.from(room.players.values())
+                .find((player) => player.sessionToken === sessionToken);
+            const duplicateName = Array.from(room.players.values()).some((player) =>
+                player.id !== reconnectingPlayer?.id &&
+                player.username.toLowerCase() === cleanUsername.toLowerCase()
+            );
             if (duplicateName) {
                 socket.emit('roomError', { message: 'That username is already in use in this room.' });
                 return;
+            }
+
+            if (reconnectingPlayer) {
+                if (reconnectingPlayer.username.toLowerCase() !== cleanUsername.toLowerCase()) {
+                    socket.emit('roomError', { message: 'Rejoin with the username used in this room.' });
+                    return;
+                }
+                const oldSocketId = reconnectingPlayer.id;
+                const pendingDisconnect = disconnectTimers.get(disconnectTimerKey(room.roomId, sessionToken));
+                if (pendingDisconnect) {
+                    clearTimeout(pendingDisconnect);
+                    disconnectTimers.delete(disconnectTimerKey(room.roomId, sessionToken));
+                }
+                room.players.delete(oldSocketId);
+                reconnectingPlayer.id = socket.id;
+                reconnectingPlayer.isConnected = true;
+                room.players.set(socket.id, reconnectingPlayer);
+                room.actorQueue = room.actorQueue.map((playerId) =>
+                    playerId === oldSocketId ? socket.id : playerId
+                );
+                if (room.actedThisRound.delete(oldSocketId)) room.actedThisRound.add(socket.id);
+                if (room.guessedPlayers.delete(oldSocketId)) room.guessedPlayers.add(socket.id);
+                if (room.currentActorId === oldSocketId) room.currentActorId = socket.id;
+                if (room.hostId === oldSocketId) room.hostId = socket.id;
             }
 
             registerLiveRoom(room);
@@ -274,7 +313,7 @@ export const initSocket = (io) => {
             // Assign the intended host when they arrive after a temporary first player.
             const isFirstPlayer = room.players.size === 0;
             const matchesHostName = room.hostName && room.hostName.toLowerCase() === cleanUsername.toLowerCase();
-            if (isFirstPlayer || matchesHostName || !room.hostId) {
+            if (!reconnectingPlayer && (isFirstPlayer || matchesHostName || !room.hostId)) {
                 room.hostId = socket.id;
                 room.hostName = cleanUsername;
                 if (matchesHostName) {
@@ -290,13 +329,16 @@ export const initSocket = (io) => {
             );
             const availableAvatarIndices = Array.from({ length: 15 }, (_, index) => index)
                 .filter((index) => !assignedAvatarIndices.has(index));
-            const avatarIndex = availableAvatarIndices.length > 0
-                ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
-                : Math.floor(Math.random() * 15);
+            const avatarIndex = reconnectingPlayer?.avatarIndex ?? (
+                availableAvatarIndices.length > 0
+                    ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
+                    : Math.floor(Math.random() * 15)
+            );
 
-            const playerObj = {
+            const playerObj = reconnectingPlayer || {
                 id: socket.id,
                 username: cleanUsername,
+                sessionToken,
                 score: 0,
                 avatarIndex,
                 isHost: socket.id === room.hostId,
@@ -304,6 +346,8 @@ export const initSocket = (io) => {
                 isSpectator: false,
                 avatarSeed: cleanUsername
             };
+            playerObj.id = socket.id;
+            playerObj.isConnected = true;
             room.players.set(socket.id, playerObj);
 
             // Emit welcome & full current state to joining player
@@ -433,8 +477,10 @@ export const initSocket = (io) => {
             }
 
             // Do not start if there is only 1 player in the lobby
-            if (room.players.size < 2) {
-                console.warn(`[Game] startGame blocked: room ${room.roomId} has only ${room.players.size} player(s). Need at least 2.`);
+            const connectedPlayers = Array.from(room.players.values())
+                .filter((roomPlayer) => roomPlayer.isConnected !== false);
+            if (connectedPlayers.length < 2) {
+                console.warn(`[Game] startGame blocked: room ${room.roomId} has only ${connectedPlayers.length} connected player(s). Need at least 2.`);
                 socket.emit('gameError', { message: 'Need at least 2 players in the lobby to start the game!' });
                 return;
             }
@@ -451,7 +497,9 @@ export const initSocket = (io) => {
             clearChatHistory(room, io);
 
             // Queue players for round 1
-            const playerIds = Array.from(room.players.keys()).sort(() => Math.random() - 0.5);
+            const playerIds = connectedPlayers
+                .map((roomPlayer) => roomPlayer.id)
+                .sort(() => Math.random() - 0.5);
             room.actorQueue = playerIds;
 
             console.log(`[Game] Room ${room.roomId} game started with ${playerIds.length} players by host ${player?.username || socket.id}`);
@@ -579,7 +627,7 @@ export const initSocket = (io) => {
 
                     // If every non-actor player has guessed, end the turn early
                     const allGuessers = Array.from(room.players.values()).filter(
-                        p => p.id !== room.currentActorId && !p.isSpectator
+                        p => p.id !== room.currentActorId && !p.isSpectator && p.isConnected !== false
                     );
                     const allGuessed = allGuessers.length > 0 && allGuessers.every(p => room.guessedPlayers.has(p.id));
 
@@ -637,6 +685,22 @@ export const initSocket = (io) => {
             });
         });
 
+        socket.on('leaveRoom', () => {
+            if (!currentRoomId) return;
+            const room = findRoom(currentRoomId);
+            const player = room?.players.get(socket.id);
+            if (!room || !player?.sessionToken) return;
+            const timerKey = disconnectTimerKey(room.roomId, player.sessionToken);
+            const pendingDisconnect = disconnectTimers.get(timerKey);
+            if (pendingDisconnect) {
+                clearTimeout(pendingDisconnect);
+                disconnectTimers.delete(timerKey);
+            }
+            player.isConnected = false;
+            finalizeDisconnect(room.roomId, socket.id, player.sessionToken);
+            currentRoomId = null;
+        });
+
         // Disconnect handler
         socket.on('disconnect', () => {
             if (!currentRoomId) return;
@@ -644,39 +708,64 @@ export const initSocket = (io) => {
             if (!room) return;
 
             const leavingPlayer = room.players.get(socket.id);
-            const username = leavingPlayer ? leavingPlayer.username : 'A player';
-            const wasHost = room.hostId === socket.id;
-            const gameWasInProgress = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
-            room.players.delete(socket.id);
-            room.actorQueue = room.actorQueue.filter((playerId) => playerId !== socket.id);
-            room.guessedPlayers.delete(socket.id);
-            room.actedThisRound.delete(socket.id);
+            if (!leavingPlayer || !leavingPlayer.sessionToken) return;
 
-            console.log(`[Socket] ${username} left room ${room.roomId}`);
+            leavingPlayer.isConnected = false;
+            const timerKey = disconnectTimerKey(room.roomId, leavingPlayer.sessionToken);
+            const existingTimer = disconnectTimers.get(timerKey);
+            if (existingTimer) clearTimeout(existingTimer);
+            const timer = setTimeout(() => {
+                disconnectTimers.delete(timerKey);
+                finalizeDisconnect(room.roomId, socket.id, leavingPlayer.sessionToken);
+            }, DISCONNECT_GRACE_MS);
+            timer.unref?.();
+            disconnectTimers.set(timerKey, timer);
 
-            if (room.players.size === 0) {
-                clearInterval(room.timerInterval);
-                resetGameToLobby(room);
-                clearChatHistory(room, io);
+            console.log(`[Socket] ${leavingPlayer.username} disconnected from room ${room.roomId}; waiting ${DISCONNECT_GRACE_MS}ms for reconnect`);
+            io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
+        });
+    });
 
-                io.to(room.roomId).emit(gameWasInProgress ? 'gameAbandoned' : 'roomClosed');
-                rooms.delete(room.roomId);
-                closeRoom(room.roomId);
-                return;
-            }
+    function finalizeDisconnect(roomId, socketId, sessionToken) {
+        const room = findRoom(roomId);
+        if (!room) return;
+        const leavingPlayer = room.players.get(socketId);
+        if (!leavingPlayer || leavingPlayer.sessionToken !== sessionToken || leavingPlayer.isConnected !== false) return;
 
-            if (wasHost && !gameWasInProgress) {
-                clearInterval(room.timerInterval);
-                resetGameToLobby(room);
-                clearChatHistory(room, io);
-                io.to(room.roomId).emit('roomClosed');
-                rooms.delete(room.roomId);
-                closeRoom(room.roomId);
-                return;
-            }
+        const username = leavingPlayer.username;
+        const wasHost = room.hostId === socketId;
+        const gameWasInProgress = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER';
+        room.players.delete(socketId);
+        room.actorQueue = room.actorQueue.filter((playerId) => playerId !== socketId);
+        room.guessedPlayers.delete(socketId);
+        room.actedThisRound.delete(socketId);
 
-            if (wasHost) {
-                const nextHost = room.players.values().next().value;
+        console.log(`[Socket] ${username} left room ${room.roomId} after reconnect grace expired`);
+
+        if (room.players.size === 0) {
+            clearInterval(room.timerInterval);
+            resetGameToLobby(room);
+            clearChatHistory(room, io);
+            io.to(room.roomId).emit(gameWasInProgress ? 'gameAbandoned' : 'roomClosed');
+            rooms.delete(room.roomId);
+            closeRoom(room.roomId);
+            return;
+        }
+
+        if (wasHost && !gameWasInProgress) {
+            clearInterval(room.timerInterval);
+            resetGameToLobby(room);
+            clearChatHistory(room, io);
+            io.to(room.roomId).emit('roomClosed');
+            rooms.delete(room.roomId);
+            closeRoom(room.roomId);
+            return;
+        }
+
+        if (wasHost) {
+            const nextHost = Array.from(room.players.values())
+                .find((player) => player.isConnected !== false);
+            if (nextHost) {
                 room.hostId = nextHost.id;
                 room.hostName = nextHost.username;
                 io.to(room.roomId).emit('hostChanged', {
@@ -684,40 +773,44 @@ export const initSocket = (io) => {
                     hostName: room.hostName
                 });
             }
+        }
 
-            if (gameWasInProgress && room.players.size < 2) {
-                resetGameToLobby(room);
-                clearChatHistory(room, io);
-                io.to(room.roomId).emit('gameStateChanged', {
-                    gameState: 'LOBBY',
-                    players: getPlayersArray(room),
-                    currentRound: 1,
-                    totalRounds: room.settings.totalRounds
-                });
-                return;
+        const connectedPlayers = Array.from(room.players.values())
+            .filter((player) => player.isConnected !== false);
+        if (gameWasInProgress && connectedPlayers.length < 2) {
+            resetGameToLobby(room);
+            clearChatHistory(room, io);
+            io.to(room.roomId).emit('gameStateChanged', {
+                gameState: 'LOBBY',
+                players: getPlayersArray(room),
+                currentRound: 1,
+                totalRounds: room.settings.totalRounds
+            });
+            return;
+        }
+
+        io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
+
+        if (gameWasInProgress && room.currentActorId === socketId) {
+            if (room.gameState === 'CHOOSING_MOVIE') {
+                clearInterval(room.timerInterval);
+                startTurn(room);
+            } else if (room.gameState === 'PLAYING') {
+                endTurn(room, 'ACTOR_LEFT');
             }
+            return;
+        }
 
-            io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
-
-            if (gameWasInProgress && room.currentActorId === socket.id) {
-                if (room.gameState === 'CHOOSING_MOVIE') {
-                    clearInterval(room.timerInterval);
-                    startTurn(room);
-                } else if (room.gameState === 'PLAYING') {
-                    endTurn(room, 'ACTOR_LEFT');
-                }
-                return;
+        if (gameWasInProgress && room.gameState === 'PLAYING') {
+            const guessers = Array.from(room.players.values())
+                .filter((player) => player.id !== room.currentActorId &&
+                    !player.isSpectator &&
+                    player.isConnected !== false);
+            if (guessers.length > 0 && guessers.every((player) => room.guessedPlayers.has(player.id))) {
+                endTurn(room, 'ALL_GUESSED');
             }
-
-            if (gameWasInProgress && room.gameState === 'PLAYING') {
-                const guessers = Array.from(room.players.values())
-                    .filter((player) => player.id !== room.currentActorId && !player.isSpectator);
-                if (guessers.length > 0 && guessers.every((player) => room.guessedPlayers.has(player.id))) {
-                    endTurn(room, 'ALL_GUESSED');
-                }
-            }
-        });
-    });
+        }
+    }
 
     /**
      * Start a new turn: select next actor and present 3 movie choices

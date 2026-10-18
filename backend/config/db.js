@@ -27,12 +27,14 @@ pgPool.on('error', (err) => {
     console.warn('⚠️ PostgreSQL Pool Warning (using in-memory fallback):', err.message);
 });
 
-// Redis Client
-const redisUrl = process.env.REDIS_URL;
+// Redis is optional. Do not attempt a localhost connection unless explicitly configured.
+const redisUrl = process.env.REDIS_URL?.trim();
+const redisHost = process.env.REDIS_HOST?.trim();
+let redisWarningShown = false;
 const redisConnectionOptions = {
     retryStrategy: (times) => {
         if (times > 5) {
-            console.warn('⚠️ Redis connection retry limit reached. Continuing with in-memory fallback.');
+            console.warn('⚠️ Redis retry limit reached. Continuing with in-memory fallback.');
             return null;
         }
         return Math.min(times * 500, 2000);
@@ -42,15 +44,27 @@ const redisConnectionOptions = {
 
 export const redisClient = redisUrl
     ? new Redis(redisUrl, redisConnectionOptions)
-    : new Redis({
-        ...redisConnectionOptions,
-        host: process.env.REDIS_HOST || '127.0.0.1',
-        port: parseInt(process.env.REDIS_PORT || '6380', 10),
-    });
+    : redisHost
+        ? new Redis({
+            ...redisConnectionOptions,
+            host: redisHost,
+            port: parseInt(process.env.REDIS_PORT || '6379', 10)
+        })
+        : null;
 
-redisClient.on('error', (err) => {
-    console.warn('⚠️ Redis Client Warning (using in-memory fallback):', err.message);
-});
+if (redisClient) {
+    redisClient.on('error', (err) => {
+        if (!redisWarningShown) {
+            console.warn('⚠️ Redis unavailable; using in-memory fallback:', err.message);
+            redisWarningShown = true;
+        }
+    });
+    redisClient.on('ready', () => {
+        redisWarningShown = false;
+    });
+} else {
+    console.info('Redis is not configured; using in-memory storage.');
+}
 
 export const initDatabases = async () => {
     // Initialize PostgreSQL Schema
@@ -75,12 +89,16 @@ export const initDatabases = async () => {
         console.error('❌ PostgreSQL Connection / Schema Error:', err.message);
     }
 
-    // Initialize Redis
+    // Initialize Redis only when configured.
+    if (!redisClient) return;
     try {
         await redisClient.connect();
         console.log('✅ Redis connected successfully.');
     } catch (err) {
-        console.warn('⚠️ Redis Connection Warning (will use in-memory fallback if needed):', err.message);
+        if (!redisWarningShown) {
+            console.warn('⚠️ Redis unavailable; using in-memory fallback:', err.message);
+            redisWarningShown = true;
+        }
     }
 };
 

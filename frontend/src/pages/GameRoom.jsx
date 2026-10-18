@@ -15,6 +15,17 @@ import { PlayerAvatar } from '../components/LobbyAvatars';
 import GameIcon from '../components/GameIcon';
 import '../styles/GameRoom.css';
 
+function getRoomSessionToken(roomId, username) {
+    const tokenKey = `charades_session_${roomId}_${username.trim().toLowerCase()}`;
+    let token = sessionStorage.getItem(tokenKey);
+    if (!token) {
+        const tokenBytes = window.crypto.getRandomValues(new Uint8Array(32));
+        token = Array.from(tokenBytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+        sessionStorage.setItem(tokenKey, token);
+    }
+    return token;
+}
+
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
@@ -28,6 +39,8 @@ export default function GameRoom() {
     const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
     const gameMenuRef = useRef(null);
     const gameMenuButtonRef = useRef(null);
+    const leaveInProgressRef = useRef(false);
+    const handleLeaveRoomRef = useRef(null);
     const isBrowserReload = useRef(
         window.performance?.getEntriesByType('navigation')[0]?.type === 'reload'
     );
@@ -117,9 +130,10 @@ export default function GameRoom() {
     // Connect and setup socket listeners with auto-rejoin on connect/reconnect
     useEffect(() => {
         if (!username || isBrowserReload.current) return;
+        const sessionToken = getRoomSessionToken(roomId, username);
 
         const handleJoin = () => {
-            socket.emit('joinRoom', { roomId, username });
+            socket.emit('joinRoom', { roomId, username, sessionToken });
         };
 
         if (socket.connected) {
@@ -188,7 +202,12 @@ export default function GameRoom() {
         };
         socket.on('gameAbandoned', handleRoomClosed);
         socket.on('roomClosed', handleRoomClosed);
-        socket.on('roomError', handleRoomClosed);
+        socket.on('roomError', (data) => {
+            addGameWarning(data?.message || 'Could not join the room.');
+            if (data?.message?.includes("doesn't exist")) {
+                handleRoomClosed();
+            }
+        });
         socket.on('gameError', (data) => {
             addGameWarning(data?.message || 'The game action could not be completed.');
         });
@@ -326,7 +345,11 @@ export default function GameRoom() {
         }
         sessionStorage.setItem('charades_user', trimmed);
         setPromptUser(false);
-        socket.emit('joinRoom', { roomId, username: trimmed });
+        socket.emit('joinRoom', {
+            roomId,
+            username: trimmed,
+            sessionToken: getRoomSessionToken(roomId, trimmed)
+        });
         setHasJoinedSocket(true);
     };
 
@@ -367,6 +390,7 @@ export default function GameRoom() {
     };
 
     const handleLeaveRoom = () => {
+        if (leaveInProgressRef.current) return;
         if (
             gameState !== 'LOBBY' &&
             gameState !== 'GAME_OVER' &&
@@ -374,9 +398,31 @@ export default function GameRoom() {
         ) {
             return;
         }
-        socket.disconnect();
-        navigate('/');
+        leaveInProgressRef.current = true;
+        socket.timeout(1000).emit('leaveRoom', () => socket.disconnect());
+        navigate('/', { replace: true });
     };
+
+    handleLeaveRoomRef.current = handleLeaveRoom;
+
+    // Mobile browser back fires popstate. Keep the room route active long enough
+    // to send an intentional leave event before returning to the home screen.
+    useEffect(() => {
+        leaveInProgressRef.current = false;
+        const roomUrl = window.location.href;
+        const restoreRoomHistoryEntry = () => {
+            window.history.pushState({ roomBackGuard: true }, '', roomUrl);
+        };
+        const handlePopState = (event) => {
+            event.stopImmediatePropagation();
+            restoreRoomHistoryEntry();
+            handleLeaveRoomRef.current?.();
+        };
+
+        restoreRoomHistoryEntry();
+        window.addEventListener('popstate', handlePopState, true);
+        return () => window.removeEventListener('popstate', handlePopState, true);
+    }, [roomId]);
 
     const toggleMute = () => {
         const muted = sounds.toggleMute();

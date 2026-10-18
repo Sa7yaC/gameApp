@@ -36,15 +36,17 @@ export async function closeRoom(roomId) {
         }
     }
 
-    try {
-        await redisClient.set(
-            `room:${roomId}:meta`,
-            JSON.stringify({ roomId, status: 'closed' }),
-            'EX',
-            86400
-        );
-    } catch (error) {
-        console.warn(`[Room] Failed to mark room ${roomId} closed in Redis:`, error.message);
+    if (redisClient) {
+        try {
+            await redisClient.set(
+                `room:${roomId}:meta`,
+                JSON.stringify({ roomId, status: 'closed' }),
+                'EX',
+                86400
+            );
+        } catch (error) {
+            console.warn(`[Room] Failed to mark room ${roomId} closed in Redis:`, error.message);
+        }
     }
 
     try {
@@ -114,21 +116,23 @@ export const createRoom = async (req, res) => {
         }
 
         // Save in Redis
-        try {
-            await redisClient.set(
-                `room:${roomId}:meta`,
-                JSON.stringify({
-                    roomId,
-                    hostName,
-                    settings: roomSettings,
-                    status: 'lobby',
-                    createdAt: new Date().toISOString()
-                }),
-                'EX',
-                86400 // 24 hours
-            );
-        } catch (redisErr) {
-            console.warn('Redis save failed:', redisErr.message);
+        if (redisClient) {
+            try {
+                await redisClient.set(
+                    `room:${roomId}:meta`,
+                    JSON.stringify({
+                        roomId,
+                        hostName,
+                        settings: roomSettings,
+                        status: 'lobby',
+                        createdAt: new Date().toISOString()
+                    }),
+                    'EX',
+                    86400 // 24 hours
+                );
+            } catch (redisErr) {
+                console.warn('Redis save failed:', redisErr.message);
+            }
         }
 
         // Memory fallback backup
@@ -160,7 +164,7 @@ export const joinRoom = async (req, res) => {
         let roomData = null;
         roomData = liveRooms.get(cleanRoomId.toLowerCase()) || null;
 
-        if (!roomData) {
+        if (!roomData && redisClient) {
             for (const [key, value] of memoryRooms.entries()) {
                 if (key.toLowerCase() === cleanRoomId.toLowerCase()) {
                     roomData = value;
@@ -171,19 +175,21 @@ export const joinRoom = async (req, res) => {
 
         // Redis/PostgreSQL are fallbacks for rooms not created in this process.
         if (!roomData) {
-            try {
-                let redisData = await redisClient.get(`room:${cleanRoomId}:meta`);
-                if (!redisData) {
-                    redisData = await redisClient.get(`room:${cleanRoomId.toLowerCase()}:meta`);
+            if (redisClient) {
+                try {
+                    let redisData = await redisClient.get(`room:${cleanRoomId}:meta`);
+                    if (!redisData) {
+                        redisData = await redisClient.get(`room:${cleanRoomId.toLowerCase()}:meta`);
+                    }
+                    if (!redisData) {
+                        redisData = await redisClient.get(`room:${cleanRoomId.toUpperCase()}:meta`);
+                    }
+                    if (redisData) {
+                        roomData = JSON.parse(redisData);
+                    }
+                } catch (error) {
+                    console.warn(`[Room] Redis lookup failed for room ${cleanRoomId}:`, error.message);
                 }
-                if (!redisData) {
-                    redisData = await redisClient.get(`room:${cleanRoomId.toUpperCase()}:meta`);
-                }
-                if (redisData) {
-                    roomData = JSON.parse(redisData);
-                }
-            } catch (error) {
-                console.warn(`[Room] Redis lookup failed for room ${cleanRoomId}:`, error.message);
             }
         }
 

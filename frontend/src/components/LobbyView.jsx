@@ -207,7 +207,11 @@ export default function LobbyView({
                                                 </span>
                                             )}
                                         </div>
-                                        <ReadyPill ready={player.isReady} asButton={self} />
+                                        {player.isConnected === false ? (
+                                            <span className="lob-ready-pill is-disconnected">Reconnecting…</span>
+                                        ) : (
+                                            <ReadyPill ready={player.isReady} asButton={self} />
+                                        )}
                                     </div>
                                 );
                             })}

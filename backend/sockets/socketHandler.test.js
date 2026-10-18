@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { initSocket } from './socketHandler.js';
 import { memoryRooms } from '../controllers/room.controller.js';
 
+const makeSessionToken = (character) => character.repeat(64);
+
 class FakeSocket {
     constructor(id) {
         this.id = id;
@@ -19,6 +21,8 @@ class FakeSocket {
     }
 
     join() {}
+
+    leave() {}
 
     clientEmit(event, payload) {
         return this.handlers.get(event)?.(payload);
@@ -55,8 +59,8 @@ test('a socket that has not joined a room cannot start its game by room ID', asy
     const guest = new FakeSocket('guest-socket');
     io.connect(host);
     io.connect(guest);
-    await host.clientEmit('joinRoom', { roomId: 'authcheck', username: 'Host' });
-    await guest.clientEmit('joinRoom', { roomId: 'authcheck', username: 'Guest' });
+    await host.clientEmit('joinRoom', { roomId: 'authcheck', username: 'Host', sessionToken: makeSessionToken('a') });
+    await guest.clientEmit('joinRoom', { roomId: 'authcheck', username: 'Guest', sessionToken: makeSessionToken('b') });
 
     const outsider = new FakeSocket('outsider-socket');
     io.connect(outsider);
@@ -78,7 +82,7 @@ test('malformed socket event payloads are rejected without throwing', async () =
 
     const socket = new FakeSocket('payload-socket');
     io.connect(socket);
-    await socket.clientEmit('joinRoom', { roomId: 'inputcheck', username: 'Host' });
+    await socket.clientEmit('joinRoom', { roomId: 'inputcheck', username: 'Host', sessionToken: makeSessionToken('c') });
 
     for (const event of ['updateSettings', 'selectMovie', 'dropClue', 'chatMessage']) {
         assert.doesNotThrow(() => socket.clientEmit(event, null));
@@ -101,8 +105,8 @@ test('a duplicate username cannot replace an active player or claim their host r
     const impersonator = new FakeSocket('impersonator');
     io.connect(host);
     io.connect(impersonator);
-    await host.clientEmit('joinRoom', { roomId: 'hostguard', username: 'Host' });
-    await impersonator.clientEmit('joinRoom', { roomId: 'hostguard', username: 'host' });
+    await host.clientEmit('joinRoom', { roomId: 'hostguard', username: 'Host', sessionToken: makeSessionToken('d') });
+    await impersonator.clientEmit('joinRoom', { roomId: 'hostguard', username: 'host', sessionToken: makeSessionToken('e') });
 
     const lastPlayersUpdate = io.broadcasts
         .filter(({ event }) => event === 'playersUpdated')
@@ -129,11 +133,70 @@ test('chat event bursts are rate limited per socket', async () => {
 
     const socket = new FakeSocket('rate-limited-player');
     io.connect(socket);
-    await socket.clientEmit('joinRoom', { roomId: 'ratecheck', username: 'Host' });
+    await socket.clientEmit('joinRoom', { roomId: 'ratecheck', username: 'Host', sessionToken: makeSessionToken('f') });
     for (let index = 0; index < 9; index += 1) {
         socket.clientEmit('chatMessage', { message: `message ${index}` });
     }
 
     assert.equal(io.broadcasts.filter(({ event }) => event === 'chatMessage').length, 8);
     assert.equal(socket.emitted.some(({ event }) => event === 'gameError'), true);
+});
+
+test('host reconnect preserves the lobby player and host identity', async () => {
+    const io = new FakeIo();
+    initSocket(io);
+    memoryRooms.set('reconnect', {
+        roomId: 'reconnect',
+        hostName: 'Host',
+        settings: { difficulty: 'easy', languages: ['Indian'], totalRounds: 1, guessingTime: 30 },
+        status: 'lobby'
+    });
+
+    const token = makeSessionToken('1');
+    const host = new FakeSocket('host-before-disconnect');
+    io.connect(host);
+    await host.clientEmit('joinRoom', { roomId: 'reconnect', username: 'Host', sessionToken: token });
+    host.clientEmit('disconnect');
+
+    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), false);
+
+    const reconnectedHost = new FakeSocket('host-after-reconnect');
+    io.connect(reconnectedHost);
+    await reconnectedHost.clientEmit('joinRoom', { roomId: 'reconnect', username: 'Host', sessionToken: token });
+
+    const playersUpdate = io.broadcasts
+        .filter(({ event }) => event === 'playersUpdated')
+        .at(-1);
+    assert.deepEqual(playersUpdate.payload.map(({ id, isHost, isConnected }) => ({
+        id,
+        isHost,
+        isConnected
+    })), [{
+        id: 'host-after-reconnect',
+        isHost: true,
+        isConnected: true
+    }]);
+    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), false);
+});
+
+test('an intentional host leave closes the lobby immediately', async () => {
+    const io = new FakeIo();
+    initSocket(io);
+    memoryRooms.set('leaveit', {
+        roomId: 'leaveit',
+        hostName: 'Host',
+        settings: { difficulty: 'easy', languages: ['Indian'], totalRounds: 1, guessingTime: 30 },
+        status: 'lobby'
+    });
+
+    const host = new FakeSocket('leaving-host');
+    io.connect(host);
+    await host.clientEmit('joinRoom', {
+        roomId: 'leaveit',
+        username: 'Host',
+        sessionToken: makeSessionToken('2')
+    });
+    host.clientEmit('leaveRoom');
+
+    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), true);
 });

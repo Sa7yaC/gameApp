@@ -332,6 +332,11 @@ button.lob-ready-pill:hover {
   color: #8a94b8;
 }
 
+.lob-ready-pill.is-disconnected {
+  background: #fff3dc;
+  color: #9a6812;
+}
+
 .lob-ready-dot {
   width: 8px;
   height: 8px;

@@ -389,9 +389,10 @@ export default function GameRoom() {
         socket.emit('playAgain');
     };
 
-    const handleLeaveRoom = () => {
+    const handleLeaveRoom = (skipConfirmation = false) => {
         if (leaveInProgressRef.current) return;
         if (
+            !skipConfirmation &&
             gameState !== 'LOBBY' &&
             gameState !== 'GAME_OVER' &&
             !window.confirm('Leave this game? Your current turn will end for you.')
@@ -416,7 +417,7 @@ export default function GameRoom() {
         const handlePopState = (event) => {
             event.stopImmediatePropagation();
             restoreRoomHistoryEntry();
-            handleLeaveRoomRef.current?.();
+            handleLeaveRoomRef.current?.(true);
         };
 
         restoreRoomHistoryEntry();

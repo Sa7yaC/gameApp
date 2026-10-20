@@ -743,7 +743,7 @@ export const initSocket = (io) => {
         room.actorQueue = room.actorQueue.filter((playerId) => playerId !== socketId);
         room.guessedPlayers.delete(socketId);
         room.actedThisRound.delete(socketId);
-        console.log(`[Socket] ${username} left room ${room.roomId} after reconnect grace expired`);
+        console.log(`[Socket] ${username} left room ${room.roomId}`);
 
         if (room.players.size === 0) {
             clearInterval(room.timerInterval);
@@ -795,12 +795,8 @@ export const initSocket = (io) => {
         io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
 
         if (gameWasInProgress && room.currentActorId === socketId) {
-            if (room.gameState === 'CHOOSING_MOVIE') {
-                clearInterval(room.timerInterval);
-                startTurn(room);
-            } else if (room.gameState === 'PLAYING') {
-                endTurn(room, 'ACTOR_LEFT');
-            }
+            clearInterval(room.timerInterval);
+            startTurn(room);
             return;
         }
 
@@ -846,6 +842,7 @@ export const initSocket = (io) => {
         room.currentActorId = nextActorId;
         room.actedThisRound.add(nextActorId);
         room.guessedPlayers.clear();
+        room.currentMovie = null;
         room.clues = [];
 
         const actor = room.players.get(nextActorId);

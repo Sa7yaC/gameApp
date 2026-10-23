@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { SocketContext } from '../context/SocketContext';
 import LobbyView from '../components/LobbyView';
 import ClueBoard from '../components/ClueBoard';
@@ -26,13 +26,32 @@ function getRoomSessionToken(roomId, username) {
     return token;
 }
 
+function getInitialRoomUsername(roomId, routeUsername) {
+    const roomUsernameKey = `charades_room_user_${roomId.toLowerCase()}`;
+    const preferredUsername = typeof routeUsername === 'string' ? routeUsername.trim() : '';
+    if (preferredUsername) {
+        sessionStorage.setItem(roomUsernameKey, preferredUsername);
+        return preferredUsername;
+    }
+
+    const savedRoomUsername = sessionStorage.getItem(roomUsernameKey);
+    if (savedRoomUsername) return savedRoomUsername;
+
+    const randomUsername = generateNordpassUsername();
+    sessionStorage.setItem(roomUsernameKey, randomUsername);
+    return randomUsername;
+}
+
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const socket = useContext(SocketContext);
 
     // Username & Join State
-    const [username, setUsername] = useState(sessionStorage.getItem('charades_user') || localStorage.getItem('cine_username') || 'Sa7yaaa');
+    const [username, setUsername] = useState(() =>
+        getInitialRoomUsername(roomId, location.state?.username)
+    );
     const [hasJoinedSocket, setHasJoinedSocket] = useState(false);
     const [promptUser, setPromptUser] = useState(false);
     const [isMuted, setIsMuted] = useState(sounds.isMuted);
@@ -343,7 +362,7 @@ export default function GameRoom() {
             trimmed = generateNordpassUsername();
             setUsername(trimmed);
         }
-        sessionStorage.setItem('charades_user', trimmed);
+        sessionStorage.setItem(`charades_room_user_${roomId.toLowerCase()}`, trimmed);
         setPromptUser(false);
         socket.emit('joinRoom', {
             roomId,
@@ -624,7 +643,7 @@ export default function GameRoom() {
                         onStartGame={handleStartGame}
                         onToggleReady={handleToggleReady}
                         onLeaveRoom={handleLeaveRoom}
-                        currentUser={username || localStorage.getItem('cine_username') || 'Sa7yaaa'}
+                        currentUser={username}
                     />
                 )}
 

@@ -116,7 +116,7 @@ export default function LandingPage() {
             });
 
             if (res.data?.success && res.data?.roomId) {
-                navigate(`/room/${res.data.roomId}`);
+                navigate(`/room/${res.data.roomId}`, { state: { username: cleanUser } });
             } else {
                 setError('Failed to create room. Please try again.');
             }
@@ -153,7 +153,7 @@ export default function LandingPage() {
             });
 
             if (res.data?.success) {
-                navigate(`/room/${res.data.roomId || cleanRoom}`);
+                navigate(`/room/${res.data.roomId || cleanRoom}`, { state: { username: cleanUser } });
             } else {
                 setError(res.data?.message || 'Room not found.');
             }

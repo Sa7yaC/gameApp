@@ -396,7 +396,7 @@ export const initSocket = (io) => {
             if (room.gameState === 'CHOOSING_MOVIE' && room.currentActorId === socket.id) {
                 socket.emit('movieChoices', {
                     choices: room.settings.hintsEnabled === false
-                        ? room.movieChoices.map(({ title, name }) => ({ title, name }))
+                        ? room.movieChoices.map(({ title, name, difficulty }) => ({ title, name, difficulty }))
                         : room.movieChoices,
                     timeLeft: room.timeLeft
                 });
@@ -868,7 +868,7 @@ export const initSocket = (io) => {
         // Send the 3 options specifically to actor
         io.to(nextActorId).emit('movieChoices', {
             choices: room.settings.hintsEnabled === false
-                ? choices.map(({ title, name }) => ({ title, name }))
+                ? choices.map(({ title, name, difficulty }) => ({ title, name, difficulty }))
                 : choices,
             timeLeft: 15
         });

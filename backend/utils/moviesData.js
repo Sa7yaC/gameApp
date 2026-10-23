@@ -526,9 +526,6 @@ export function getMainTitleWordCount(title) {
     return mainTitle ? mainTitle.split(/\s+/).filter(Boolean).length : 0;
 }
 
-/**
- * Return up to 3 distinct, unused movie options for the current settings.
- */
 function shuffleMovies(movies) {
     const shuffled = [...movies];
 
@@ -547,6 +544,7 @@ function formatMovieChoice(movie) {
         title: movie.title,
         name: movie.title,
         language: movie.language,
+        difficulty: movie.difficulty,
         year: movie.year,
         years: movie.year,
         wordCount: words,
@@ -554,72 +552,27 @@ function formatMovieChoice(movie) {
     };
 }
 
-export function getMovieChoices(difficulty = 'easy', languages = ['Indian'], usedTitles = new Set()) {
-    const selectedLanguages = languages.map(language =>
-        language.toLowerCase() === 'bollywood' ? 'indian' : language.toLowerCase()
-    );
-    if (selectedLanguages.includes('mixed')) {
-        const categories = ['Indian', 'Hollywood', 'Animated'];
-        const categoryPools = categories.map(category => {
-            let categoryPool = moviesDatabase.filter(movie => {
-                if (movie.language !== category) return false;
-                if (difficulty === 'easy') return movie.difficulty === 'easy';
-                if (difficulty === 'medium') return movie.difficulty === 'medium' || movie.difficulty === 'easy';
-                return movie.difficulty === 'hard' || movie.difficulty === 'medium';
-            });
+/**
+ * Return one unused movie for each difficulty from the selected language categories.
+ */
+export function getMovieChoices(_difficulty = 'easy', languages = ['Indian'], usedTitles = new Set()) {
+    const selectedLanguages = (Array.isArray(languages) ? languages : [])
+        .map(language => language.toLowerCase() === 'bollywood' ? 'indian' : language.toLowerCase());
+    const languagePool = selectedLanguages.includes('mixed')
+        ? ['indian', 'hollywood', 'animated']
+        : selectedLanguages.length > 0 ? selectedLanguages : ['indian'];
+    const languageSet = new Set(languagePool);
+    const difficultyLevels = ['easy', 'medium', 'hard'];
 
-            if (categoryPool.length === 0) {
-                categoryPool = moviesDatabase.filter(movie => movie.language === category);
-            }
-
-            return categoryPool;
-        });
-        const unusedMovies = Array.from(new Map(
-            categoryPools.flat()
-                .filter(movie => !usedTitles.has(movie.title.toLowerCase()))
-                .map(movie => [movie.title.toLowerCase(), movie])
-        ).values());
-        const availableMovies = unusedMovies.length > 0
-            ? unusedMovies
-            : Array.from(new Map(categoryPools.flat().map(movie => [movie.title.toLowerCase(), movie])).values());
-        const availableTitles = new Set(availableMovies.map(movie => movie.title.toLowerCase()));
-        const selected = [];
-
-        for (const categoryPool of categoryPools) {
-            const categoryMovies = shuffleMovies(categoryPool.filter(movie => availableTitles.has(movie.title.toLowerCase())));
-            if (categoryMovies.length > 0) {
-                selected.push(categoryMovies[0]);
-            }
-        }
-
-        const selectedTitles = new Set(selected.map(movie => movie.title.toLowerCase()));
-        const remainingMovies = shuffleMovies(availableMovies.filter(movie => !selectedTitles.has(movie.title.toLowerCase())));
-        return [...selected, ...remainingMovies].slice(0, 3).map(formatMovieChoice);
-    }
-
-    let pool = [];
-
-    if (difficulty === 'easy') {
-        const lang = selectedLanguages[0] || 'indian';
-        pool = moviesDatabase.filter(m => m.language.toLowerCase() === lang && m.difficulty === 'easy');
-    } else if (difficulty === 'medium') {
-        const selectedLangs = selectedLanguages.length > 0 ? selectedLanguages : ['indian', 'hollywood'];
-        pool = moviesDatabase.filter(m => 
-            selectedLangs.includes(m.language.toLowerCase()) && 
-            (m.difficulty === 'medium' || m.difficulty === 'easy')
+    return difficultyLevels.flatMap(level => {
+        const categoryPool = moviesDatabase.filter(movie =>
+            languageSet.has(movie.language.toLowerCase()) && movie.difficulty === level
         );
-    } else {
-        // Hard: all languages, medium & hard difficulties
-        pool = moviesDatabase.filter(m => m.difficulty === 'hard' || m.difficulty === 'medium');
-    }
-
-    if (pool.length === 0) {
-        pool = [...moviesDatabase];
-    }
-
-    const unusedMovies = pool.filter(movie => !usedTitles.has(movie.title.toLowerCase()));
-    const availableMovies = unusedMovies.length > 0 ? unusedMovies : pool;
-    return shuffleMovies(availableMovies).slice(0, 3).map(formatMovieChoice);
+        const unusedMovies = categoryPool.filter(movie => !usedTitles.has(movie.title.toLowerCase()));
+        const availableMovies = unusedMovies.length > 0 ? unusedMovies : categoryPool;
+        const selectedMovie = shuffleMovies(availableMovies)[0];
+        return selectedMovie ? [formatMovieChoice(selectedMovie)] : [];
+    });
 }
 
 /**

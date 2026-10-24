@@ -10,13 +10,31 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const { Pool } = pg;
 
-// PostgreSQL Pool
+const databaseUrl = process.env.DATABASE_URL?.trim();
+const pgSslSetting = process.env.PG_SSL?.trim().toLowerCase();
+const usePgSsl = pgSslSetting === 'true' || (Boolean(databaseUrl) && pgSslSetting !== 'false');
+
+const requireVerifiedTls = (connectionString) => {
+    const url = new URL(connectionString);
+    url.searchParams.set('sslmode', 'verify-full');
+    return url.toString();
+};
+
+const pgConnectionConfig = databaseUrl
+    ? { connectionString: usePgSsl ? requireVerifiedTls(databaseUrl) : databaseUrl }
+    : {
+        host: process.env.PG_HOST || 'localhost',
+        port: parseInt(process.env.PG_PORT || '5434', 10),
+        user: process.env.PG_USER || 'gameuser',
+        password: process.env.PG_PASSWORD || 'gamepass',
+        database: process.env.PG_DATABASE || 'gameapp',
+        ...(usePgSsl ? { ssl: {} } : {})
+    };
+
+// DATABASE_URL enables verified TLS by default. For separate PG_* settings,
+// set PG_SSL=true when connecting to an external managed PostgreSQL service.
 export const pgPool = new Pool({
-    host: process.env.PG_HOST || 'localhost',
-    port: parseInt(process.env.PG_PORT || '5434', 10),
-    user: process.env.PG_USER || 'gameuser',
-    password: process.env.PG_PASSWORD || 'gamepass',
-    database: process.env.PG_DATABASE || 'gameapp',
+    ...pgConnectionConfig,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

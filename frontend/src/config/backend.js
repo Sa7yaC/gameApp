@@ -1,7 +1,7 @@
 const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL?.trim();
 const backendUrl = configuredBackendUrl ||
     (import.meta.env.PROD
-        ? 'https://emojicharadesbackend.fun'
+        ? 'https://emojicharades.onrender.com'
         : 'http://localhost:3001');
 
 const BACKEND_URL = (backendUrl.startsWith('//')

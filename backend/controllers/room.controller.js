@@ -3,7 +3,7 @@ import { generateNordpassUsername } from '../utils/nordpassUsername.js';
 import { pgPool, redisClient } from '../config/db.js';
 
 const roomDifficulties = new Set(['easy', 'medium', 'hard']);
-const roomLanguages = new Set(['Animated', 'Hollywood', 'Indian']);
+const roomLanguages = new Set(['Animated', 'Hollywood', 'Indian', 'Mixed']);
 
 // In-memory fallback if DB is unavailable
 export const memoryRooms = new Map();

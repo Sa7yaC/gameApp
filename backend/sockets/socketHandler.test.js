@@ -182,3 +182,36 @@ test('an intentional host leave closes the lobby immediately', async () => {
 
     assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), true);
 });
+
+test('host can select Mixed category and broadcast updated settings', async () => {
+    const io = new FakeIo();
+    initSocket(io);
+    memoryRooms.set('mixedtest', {
+        roomId: 'mixedtest',
+        hostName: 'Host',
+        settings: { difficulty: 'easy', languages: ['Indian'], category: 'Indian', totalRounds: 3, guessingTime: 90 },
+        status: 'lobby'
+    });
+
+    const host = new FakeSocket('host-mixed');
+    io.connect(host);
+    await host.clientEmit('joinRoom', {
+        roomId: 'mixedtest',
+        username: 'Host',
+        sessionToken: makeSessionToken('f')
+    });
+
+    await host.clientEmit('updateSettings', {
+        settings: { category: 'Mixed', languages: ['Mixed'] }
+    });
+
+    const settingsUpdate = io.broadcasts
+        .filter(({ event }) => event === 'settingsUpdated')
+        .at(-1);
+
+    assert.ok(settingsUpdate, 'settingsUpdated should be broadcast');
+    assert.equal(settingsUpdate.payload.category, 'Mixed');
+    assert.deepEqual(settingsUpdate.payload.languages, ['Mixed']);
+    assert.equal(host.emitted.some(({ event }) => event === 'gameError'), false);
+});
+

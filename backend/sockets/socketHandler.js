@@ -8,7 +8,7 @@ import { closeRoom, memoryRooms, liveRooms, registerLiveRoom } from '../controll
 // Rooms in-memory state: Map<roomId, RoomState>
 const rooms = new Map();
 const roomDifficulties = new Set(['easy', 'medium', 'hard']);
-const roomCategories = new Set(['Animated', 'Hollywood', 'Indian']);
+const roomCategories = new Set(['Animated', 'Hollywood', 'Indian', 'Mixed']);
 const roomSettingKeys = new Set([
     'difficulty',
     'languages',

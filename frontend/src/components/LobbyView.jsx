@@ -27,11 +27,20 @@ export default function LobbyView({
     const currentRounds = settings.totalRounds || 3;
     const currentGuessingTime = Math.min(300, Math.max(30, Number(settings.guessingTime) || 90));
     const configuredCategory = settings.category ||
-        (Array.isArray(settings.languages) && settings.languages[0]) ||
+        (Array.isArray(settings.languages) && (
+            settings.languages.some((l) => String(l).toLowerCase() === 'mixed') || settings.languages.length >= 3
+                ? 'Mixed'
+                : settings.languages[0]
+        )) ||
         'Indian';
-    const currentCategory = configuredCategory.toLowerCase() === 'bollywood'
-        ? 'Indian'
-        : configuredCategory;
+    const currentCategory = (() => {
+        const lower = String(configuredCategory || '').toLowerCase();
+        if (lower === 'bollywood') return 'Indian';
+        if (lower === 'mixed') return 'Mixed';
+        if (lower === 'animated') return 'Animated';
+        if (lower === 'hollywood') return 'Hollywood';
+        return configuredCategory;
+    })();
     const hintsEnabled = settings.hintsEnabled !== undefined ? settings.hintsEnabled : true;
 
     // Player roster (falls back to just the current user until room state arrives)
@@ -109,7 +118,8 @@ export default function LobbyView({
 
     const handleCategorySelect = (cat) => {
         if (!isHost || !onUpdateSettings) return;
-        onUpdateSettings({ ...settings, category: cat, languages: [cat] });
+        const languages = cat === 'Mixed' ? ['Mixed'] : [cat];
+        onUpdateSettings({ ...settings, category: cat, languages });
         setCategoryOpen(false);
         sounds.playPop();
     };

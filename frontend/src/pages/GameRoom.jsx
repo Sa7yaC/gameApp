@@ -219,6 +219,12 @@ export default function GameRoom() {
             socket.disconnect();
             navigate('/');
         };
+        const handleDisconnect = () => {
+            if (!leaveInProgressRef.current) {
+                navigate('/', { replace: true });
+            }
+        };
+        socket.on('disconnect', handleDisconnect);
         socket.on('gameAbandoned', handleRoomClosed);
         socket.on('roomClosed', handleRoomClosed);
         socket.on('roomError', (data) => {
@@ -351,6 +357,7 @@ export default function GameRoom() {
             socket.off('turnEnded');
             socket.off('gameOver');
             socket.off('gameStateChanged');
+            socket.off('disconnect', handleDisconnect);
         };
     }, [socket, navigate]);
 
@@ -419,14 +426,20 @@ export default function GameRoom() {
             return;
         }
         leaveInProgressRef.current = true;
-        socket.timeout(1000).emit('leaveRoom', () => socket.disconnect());
+        try {
+            sessionStorage.removeItem(`charades_room_user_${roomId.toLowerCase()}`);
+            if (username) {
+                sessionStorage.removeItem(`charades_session_${roomId.toLowerCase()}_${username.trim().toLowerCase()}`);
+            }
+        } catch (e) {}
+        socket.emit('leaveRoom');
+        socket.disconnect();
         navigate('/', { replace: true });
     };
 
     handleLeaveRoomRef.current = handleLeaveRoom;
 
-    // Mobile browser back fires popstate. Keep the room route active long enough
-    // to send an intentional leave event before returning to the home screen.
+    // Mobile browser back fires popstate.
     useEffect(() => {
         leaveInProgressRef.current = false;
         const roomUrl = window.location.href;
@@ -443,6 +456,32 @@ export default function GameRoom() {
         window.addEventListener('popstate', handlePopState, true);
         return () => window.removeEventListener('popstate', handlePopState, true);
     }, [roomId]);
+
+    // Close tab, freeze or navigate away: immediately exit and remove player
+    useEffect(() => {
+        const handleUnload = () => {
+            try {
+                sessionStorage.removeItem(`charades_room_user_${roomId.toLowerCase()}`);
+                if (username) {
+                    sessionStorage.removeItem(`charades_session_${roomId.toLowerCase()}_${username.trim().toLowerCase()}`);
+                }
+            } catch (e) {}
+            socket.emit('leaveRoom');
+            socket.disconnect();
+        };
+
+        window.addEventListener('beforeunload', handleUnload);
+        window.addEventListener('pagehide', handleUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleUnload);
+            window.removeEventListener('pagehide', handleUnload);
+            if (!leaveInProgressRef.current) {
+                socket.emit('leaveRoom');
+                socket.disconnect();
+            }
+        };
+    }, [roomId, username]);
 
     const toggleMute = () => {
         const muted = sounds.toggleMute();
@@ -512,12 +551,6 @@ export default function GameRoom() {
                             <span>Round {currentRound} / {totalRounds}</span>
                         </div>
 
-                        {turnTotal > 0 && (
-                            <div className="gs-chip">
-                                <GameIcon name="turn-players" size={20} alt="" />
-                                <span>Turn {turnNumber > 0 ? turnNumber : 1} / {turnTotal}</span>
-                            </div>
-                        )}
 
                         {actorName && (
                             <div className="gs-turn-chip">

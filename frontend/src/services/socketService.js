@@ -3,10 +3,7 @@ import BACKEND_URL from '../config/backend';
 
 const socket = io(BACKEND_URL, {
   autoConnect: false,
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
+  reconnection: false,
   transports: ["websocket", "polling"],
 });
 

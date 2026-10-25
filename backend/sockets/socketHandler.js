@@ -18,8 +18,6 @@ const roomSettingKeys = new Set([
     'hintsEnabled'
 ]);
 const MAX_CLUES_PER_TURN = 30;
-const DISCONNECT_GRACE_MS = 2 * 60 * 1000;
-const disconnectTimers = new Map();
 
 function createSocketEventLimiter() {
     const eventTimestamps = new Map();
@@ -35,10 +33,6 @@ function createSocketEventLimiter() {
         eventTimestamps.set(eventName, recentTimestamps);
         return true;
     };
-}
-
-function disconnectTimerKey(roomId, sessionToken) {
-    return `${roomId.toLowerCase()}:${sessionToken}`;
 }
 
 /**
@@ -276,37 +270,12 @@ export const initSocket = (io) => {
 
             const room = getOrCreateRoom(cleanRoomId);
             if (room.players.has(socket.id)) return;
-            const reconnectingPlayer = Array.from(room.players.values())
-                .find((player) => player.sessionToken === sessionToken);
             const duplicateName = Array.from(room.players.values()).some((player) =>
-                player.id !== reconnectingPlayer?.id &&
                 player.username.toLowerCase() === cleanUsername.toLowerCase()
             );
             if (duplicateName) {
                 socket.emit('roomError', { message: 'That username is already in use in this room.' });
                 return;
-            }
-            if (reconnectingPlayer) {
-                if (reconnectingPlayer.username.toLowerCase() !== cleanUsername.toLowerCase()) {
-                    socket.emit('roomError', { message: 'Rejoin with the username used in this room.' });
-                    return;
-                }
-                const oldSocketId = reconnectingPlayer.id;
-                const timerKey = disconnectTimerKey(room.roomId, sessionToken);
-                const pendingDisconnect = disconnectTimers.get(timerKey);
-                if (pendingDisconnect) clearTimeout(pendingDisconnect);
-                disconnectTimers.delete(timerKey);
-                room.players.delete(oldSocketId);
-                reconnectingPlayer.id = socket.id;
-                reconnectingPlayer.isConnected = true;
-                room.players.set(socket.id, reconnectingPlayer);
-                room.actorQueue = room.actorQueue.map((playerId) =>
-                    playerId === oldSocketId ? socket.id : playerId
-                );
-                if (room.actedThisRound.delete(oldSocketId)) room.actedThisRound.add(socket.id);
-                if (room.guessedPlayers.delete(oldSocketId)) room.guessedPlayers.add(socket.id);
-                if (room.currentActorId === oldSocketId) room.currentActorId = socket.id;
-                if (room.hostId === oldSocketId) room.hostId = socket.id;
             }
 
             registerLiveRoom(room);
@@ -317,7 +286,7 @@ export const initSocket = (io) => {
             // Assign the intended host when they arrive after a temporary first player.
             const isFirstPlayer = room.players.size === 0;
             const matchesHostName = room.hostName && room.hostName.toLowerCase() === cleanUsername.toLowerCase();
-            if (!reconnectingPlayer && (isFirstPlayer || matchesHostName || !room.hostId)) {
+            if (isFirstPlayer || matchesHostName || !room.hostId) {
                 room.hostId = socket.id;
                 room.hostName = cleanUsername;
                 if (matchesHostName) {
@@ -333,13 +302,11 @@ export const initSocket = (io) => {
             );
             const availableAvatarIndices = Array.from({ length: 15 }, (_, index) => index)
                 .filter((index) => !assignedAvatarIndices.has(index));
-            const avatarIndex = reconnectingPlayer?.avatarIndex ?? (
-                availableAvatarIndices.length > 0
+            const avatarIndex = availableAvatarIndices.length > 0
                 ? availableAvatarIndices[Math.floor(Math.random() * availableAvatarIndices.length)]
-                : Math.floor(Math.random() * 15)
-            );
+                : Math.floor(Math.random() * 15);
 
-            const playerObj = reconnectingPlayer || {
+            const playerObj = {
                 id: socket.id,
                 username: cleanUsername,
                 sessionToken,
@@ -348,10 +315,9 @@ export const initSocket = (io) => {
                 isHost: socket.id === room.hostId,
                 isReady: true,
                 isSpectator: false,
+                isConnected: true,
                 avatarSeed: cleanUsername
             };
-            playerObj.id = socket.id;
-            playerObj.isConnected = true;
             room.players.set(socket.id, playerObj);
 
             // Emit welcome & full current state to joining player
@@ -695,12 +661,7 @@ export const initSocket = (io) => {
             }
             const room = findRoom(currentRoomId);
             const player = room?.players.get(socket.id);
-            if (room && player?.sessionToken) {
-                const timerKey = disconnectTimerKey(room.roomId, player.sessionToken);
-                const pendingDisconnect = disconnectTimers.get(timerKey);
-                if (pendingDisconnect) clearTimeout(pendingDisconnect);
-                disconnectTimers.delete(timerKey);
-                player.isConnected = false;
+            if (room && player) {
                 socket.leave(room.roomId);
                 finalizeDisconnect(room.roomId, socket.id, player.sessionToken);
             }
@@ -712,21 +673,10 @@ export const initSocket = (io) => {
             if (!currentRoomId) return;
             const room = findRoom(currentRoomId);
             const leavingPlayer = room?.players.get(socket.id);
-            if (!room || !leavingPlayer?.sessionToken) return;
+            if (!room || !leavingPlayer) return;
 
-            leavingPlayer.isConnected = false;
-            const timerKey = disconnectTimerKey(room.roomId, leavingPlayer.sessionToken);
-            const existingTimer = disconnectTimers.get(timerKey);
-            if (existingTimer) clearTimeout(existingTimer);
-            const timer = setTimeout(() => {
-                disconnectTimers.delete(timerKey);
-                finalizeDisconnect(room.roomId, socket.id, leavingPlayer.sessionToken);
-            }, DISCONNECT_GRACE_MS);
-            timer.unref?.();
-            disconnectTimers.set(timerKey, timer);
-
-            console.log(`[Socket] ${leavingPlayer.username} disconnected from room ${room.roomId}; waiting ${DISCONNECT_GRACE_MS}ms for reconnect`);
-            io.to(room.roomId).emit('playersUpdated', getPlayersArray(room));
+            finalizeDisconnect(room.roomId, socket.id, leavingPlayer.sessionToken);
+            currentRoomId = null;
         });
     });
 
@@ -734,7 +684,7 @@ export const initSocket = (io) => {
         const room = findRoom(roomId);
         if (!room) return;
         const leavingPlayer = room.players.get(socketId);
-        if (!leavingPlayer || leavingPlayer.sessionToken !== sessionToken || leavingPlayer.isConnected !== false) return;
+        if (!leavingPlayer) return;
 
         const username = leavingPlayer.username;
         const wasHost = room.hostId === socketId;
@@ -766,11 +716,11 @@ export const initSocket = (io) => {
         }
 
         if (wasHost) {
-            const nextHost = Array.from(room.players.values())
-                .find((player) => player.isConnected !== false);
+            const nextHost = Array.from(room.players.values())[0];
             if (nextHost) {
                 room.hostId = nextHost.id;
                 room.hostName = nextHost.username;
+                nextHost.isHost = true;
                 io.to(room.roomId).emit('hostChanged', {
                     hostId: room.hostId,
                     hostName: room.hostName
@@ -778,9 +728,8 @@ export const initSocket = (io) => {
             }
         }
 
-        const connectedPlayers = Array.from(room.players.values())
-            .filter((player) => player.isConnected !== false);
-        if (gameWasInProgress && connectedPlayers.length < 2) {
+        const remainingPlayers = Array.from(room.players.values());
+        if (gameWasInProgress && remainingPlayers.length < 2) {
             resetGameToLobby(room);
             clearChatHistory(room, io);
             io.to(room.roomId).emit('gameStateChanged', {
@@ -802,9 +751,7 @@ export const initSocket = (io) => {
 
         if (gameWasInProgress && room.gameState === 'PLAYING') {
             const guessers = Array.from(room.players.values())
-                .filter((player) => player.id !== room.currentActorId &&
-                    !player.isSpectator &&
-                    player.isConnected !== false);
+                .filter((player) => player.id !== room.currentActorId && !player.isSpectator);
             if (guessers.length > 0 && guessers.every((player) => room.guessedPlayers.has(player.id))) {
                 endTurn(room, 'ALL_GUESSED');
             }
@@ -817,7 +764,7 @@ export const initSocket = (io) => {
     function startTurn(room) {
         clearInterval(room.timerInterval);
         room.actorQueue = room.actorQueue.filter((playerId) =>
-            room.players.get(playerId)?.isConnected !== false
+            room.players.has(playerId)
         );
 
         // Check if round needs to finish or if actorQueue is empty

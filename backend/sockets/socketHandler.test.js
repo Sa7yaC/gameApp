@@ -142,7 +142,7 @@ test('chat event bursts are rate limited per socket', async () => {
     assert.equal(socket.emitted.some(({ event }) => event === 'gameError'), true);
 });
 
-test('host reconnect preserves the lobby player and host identity', async () => {
+test('host disconnect immediately removes the player and closes the lobby', async () => {
     const io = new FakeIo();
     initSocket(io);
     memoryRooms.set('reconnect', {
@@ -158,25 +158,7 @@ test('host reconnect preserves the lobby player and host identity', async () => 
     await host.clientEmit('joinRoom', { roomId: 'reconnect', username: 'Host', sessionToken: token });
     host.clientEmit('disconnect');
 
-    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), false);
-
-    const reconnectedHost = new FakeSocket('host-after-reconnect');
-    io.connect(reconnectedHost);
-    await reconnectedHost.clientEmit('joinRoom', { roomId: 'reconnect', username: 'Host', sessionToken: token });
-
-    const playersUpdate = io.broadcasts
-        .filter(({ event }) => event === 'playersUpdated')
-        .at(-1);
-    assert.deepEqual(playersUpdate.payload.map(({ id, isHost, isConnected }) => ({
-        id,
-        isHost,
-        isConnected
-    })), [{
-        id: 'host-after-reconnect',
-        isHost: true,
-        isConnected: true
-    }]);
-    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), false);
+    assert.equal(io.broadcasts.some(({ event }) => event === 'roomClosed'), true);
 });
 
 test('an intentional host leave closes the lobby immediately', async () => {

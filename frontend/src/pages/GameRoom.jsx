@@ -53,6 +53,7 @@ export default function GameRoom() {
         getInitialRoomUsername(roomId, location.state?.username)
     );
     const [hasJoinedSocket, setHasJoinedSocket] = useState(false);
+    const hasJoinedSocketRef = useRef(false);
     const [promptUser, setPromptUser] = useState(false);
     const [isMuted, setIsMuted] = useState(sounds.isMuted);
     const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
@@ -60,9 +61,6 @@ export default function GameRoom() {
     const gameMenuButtonRef = useRef(null);
     const leaveInProgressRef = useRef(false);
     const handleLeaveRoomRef = useRef(null);
-    const isBrowserReload = useRef(
-        window.performance?.getEntriesByType('navigation')[0]?.type === 'reload'
-    );
 
     // Game Room State
     const [hostId, setHostId] = useState('');
@@ -111,13 +109,6 @@ export default function GameRoom() {
     const currentActor = players.find((player) => player.id === currentActorId);
 
     useEffect(() => {
-        if (!isBrowserReload.current) return;
-
-        socket.disconnect();
-        navigate('/', { replace: true });
-    }, [navigate, socket]);
-
-    useEffect(() => {
         if (!isGameMenuOpen) return undefined;
 
         const closeOnOutsideClick = (event) => {
@@ -146,9 +137,9 @@ export default function GameRoom() {
         }
     }, [isGameMenuOpen]);
 
-    // Connect and setup socket listeners with auto-rejoin on connect/reconnect
+    // Connect and setup socket join
     useEffect(() => {
-        if (!username || isBrowserReload.current) return;
+        if (!username) return;
         const sessionToken = getRoomSessionToken(roomId, username);
 
         const handleJoin = () => {
@@ -180,6 +171,8 @@ export default function GameRoom() {
 
         // Init room state when joining
         socket.on('initRoomState', (data) => {
+            setHasJoinedSocket(true);
+            hasJoinedSocketRef.current = true;
             setHostId(data.hostId);
             setSettings(data.settings || {});
             setGameState(data.gameState);
@@ -220,7 +213,7 @@ export default function GameRoom() {
             navigate('/');
         };
         const handleDisconnect = () => {
-            if (!leaveInProgressRef.current) {
+            if (!leaveInProgressRef.current && hasJoinedSocketRef.current) {
                 navigate('/', { replace: true });
             }
         };
@@ -476,7 +469,7 @@ export default function GameRoom() {
         return () => {
             window.removeEventListener('beforeunload', handleUnload);
             window.removeEventListener('pagehide', handleUnload);
-            if (!leaveInProgressRef.current) {
+            if (!leaveInProgressRef.current && hasJoinedSocketRef.current) {
                 socket.emit('leaveRoom');
                 socket.disconnect();
             }

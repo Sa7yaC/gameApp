@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowRight, Copy, RefreshCw } from 'lucide-react';
+import { ArrowRight, Copy, RefreshCw, HelpCircle } from 'lucide-react';
 import GameIcon from '../components/GameIcon';
+import RulesModal from '../components/RulesModal';
 import sounds from '../utils/soundEffects';
 import { generateNordpassUsername } from '../utils/nordpassUsername';
 import BACKEND_URL from '../config/backend';
@@ -72,6 +73,7 @@ export default function LandingPage() {
     const [roomCode, setRoomCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isRulesOpen, setIsRulesOpen] = useState(false);
     const codeInputRef = useRef(null);
 
     useEffect(() => {
@@ -181,6 +183,26 @@ export default function LandingPage() {
 
     return (
         <div className="lp-page">
+            {/* How to Play & Rules Toggle Button */}
+            <button
+                type="button"
+                className="home-help-toggle-btn"
+                onClick={() => {
+                    sounds.playPop();
+                    setIsRulesOpen(true);
+                }}
+                title="How to Play & Rules"
+                aria-label="How to Play & Rules"
+            >
+                <img
+                    src="/icons/rules-help.png"
+                    alt="?"
+                    className="home-help-3d-icon"
+                    draggable={false}
+                />
+                <span>How to Play</span>
+            </button>
+
             {error && (
                 <div className="lp-toast" role="alert">
                     <span aria-hidden="true">⚠️</span>
@@ -297,6 +319,12 @@ export default function LandingPage() {
                     </div>
                 </div>
             </div>
+
+            {/* How to Play & Rules Modal */}
+            <RulesModal
+                isOpen={isRulesOpen}
+                onClose={() => setIsRulesOpen(false)}
+            />
         </div>
     );
 }
